@@ -28,7 +28,7 @@ particle_store_token <- function() {
 #' Get devices
 #' @param token particle access token
 #' @param sdds_only whether to only return SDDS devices (default TRUE)
-#' @result tibble of particle devices registered to the account
+#' @return tibble of particle SDDS devices registered to the account
 #' @export
 particle_get_device_info <- function(
     token = keyring::key_get("particle"),
@@ -70,6 +70,5 @@ particle_get_device_info <- function(
     abort_cnds(out$conditions)
 
     # result
-    # FIXME: filter SDDS devices
     return(out$result)
 }
