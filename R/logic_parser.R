@@ -32,7 +32,8 @@ split_event_data <- function(json) {
     device = parsed |> purrr::map_chr(~ .x[["n"]] %||% NA_character_),
     type = parsed |> purrr::map_chr(~ .x[["t"]] %||% NA_character_),
     version = parsed |> purrr::map_int(~ .x[["v"]] %||% NA_integer_),
-    json = parsed |> purrr::map_chr(jsonlite::toJSON, auto_unbox = TRUE)
+    json = parsed |>
+      purrr::map_chr(jsonlite::toJSON, auto_unbox = TRUE, null = "null")
   )
 }
 
@@ -89,6 +90,20 @@ sdds_cache_events <- function(events) {
   invisible(NULL)
 }
 
+#' @describeIn sdds_parser reads the cached trees and tree values
+sdds_read_cached_trees_and_values <- function(
+  tree_cache_path = "cache/sdds_trees.csv",
+  values_cache_path = "cache/sdds_values.csv"
+) {
+  read_cached_treevalues(values_cache_path) |>
+    dplyr::left_join(
+      read_cached_trees(tree_cache_path) |>
+        # safety measure should there ever be duplicate structure records (shouldn't happen)
+        dplyr::slice_head(n = 1, by = c("type", "version")),
+      by = c("type", "version")
+    )
+}
+
 # internal function for caching trees
 cache_trees <- function(trees, cache_path = "cache/sdds_trees.csv") {
   # safety checks
@@ -113,8 +128,25 @@ cache_trees <- function(trees, cache_path = "cache/sdds_trees.csv") {
     trees |> readr::write_csv(file = cache_path)
   } else {
     # append to existing trees
-    existing_trees <-
-      cache_path |>
+    existing_trees <- cache_path |> read_cached_trees()
+    new_trees <- trees |>
+      dplyr::anti_join(existing_trees, by = c("type", "version"))
+    if (nrow(new_trees) > 0L) {
+      new_trees |> readr::write_csv(file = cache_path, append = TRUE)
+    }
+  }
+}
+
+# internal function to read cached trees
+read_cached_trees <- function(cache_path = "cache/sdds_trees.csv") {
+  if (!file.exists(cache_path)) {
+    tibble(
+      type = character(),
+      version = integer(),
+      tree_json = character()
+    )
+  } else {
+    cache_path |>
       readr::read_csv(
         col_types = readr::cols(
           type = readr::col_character(),
@@ -122,11 +154,6 @@ cache_trees <- function(trees, cache_path = "cache/sdds_trees.csv") {
           tree_json = readr::col_character()
         )
       )
-    new_trees <- trees |>
-      dplyr::anti_join(existing_trees, by = c("type", "version"))
-    if (nrow(new_trees) > 0L) {
-      new_trees |> readr::write_csv(file = cache_path, append = TRUE)
-    }
   }
 }
 
@@ -164,8 +191,27 @@ cache_treevalues <- function(values, cache_path = "cache/sdds_values.csv") {
     values |> readr::write_csv(file = cache_path)
   } else {
     # overwrite existing values
-    existing_values <-
-      cache_path |>
+    existing_values <- cache_path |> read_cached_treevalues()
+    # overwrite values
+    existing_values |>
+      dplyr::anti_join(values, by = "coreid") |>
+      dplyr::bind_rows(values) |>
+      readr::write_csv(file = cache_path)
+  }
+}
+
+# internal function to read cached tree values
+read_cached_treevalues <- function(cache_path = "cache/sdds_values.csv") {
+  if (!file.exists(cache_path)) {
+    tibble(
+      coreid = character(),
+      published_at = character(),
+      type = character(),
+      version = integer(),
+      values_json = character()
+    )
+  } else {
+    cache_path |>
       readr::read_csv(
         col_types = readr::cols(
           coreid = readr::col_character(),
@@ -175,22 +221,53 @@ cache_treevalues <- function(values, cache_path = "cache/sdds_values.csv") {
           values_json = readr::col_character()
         )
       )
-    # overwrite values
-    existing_values |>
-      dplyr::anti_join(values, by = "coreid") |>
-      dplyr::bind_rows(values) |>
-      readr::write_csv(file = cache_path)
   }
 }
 
-
 # parse data =========
+
+#' @param ds tibble with values_json and tree_json columns
+#' @describeIn sdds_parser parses tree structure and values from tibble
+sdds_parse_trees_and_values <- function(ds) {
+  # safety checks
+  ds |> check_tibble(req_cols = c("coreid", "values_json", "tree_json"))
+  # parse json
+  ds <- ds |>
+    dplyr::mutate(
+      tree = purrr::map(.data$tree_json, sdds_parse_tree),
+      values = purrr::map(.data$values_json, sdds_parse_values)
+    ) |>
+    dplyr::select(-"values_json", -"tree_json") |>
+    tidyr::unnest(c(.data$tree, .data$values))
+
+  # combine data (outside mutate for better error messages)
+  this_call <- current_call()
+  ds$tree_w_values <- purrr::pmap(
+    list(ds$coreid, ds$tree, ds$values),
+    function(coreid, tree, values, call = caller_call()) {
+      if (is.null(tree) || is.null(values)) {
+        return(NULL)
+      }
+      out <- sdds_combine_tree_and_values(tree, values) |> try_catch_cnds()
+      out$conditions |>
+        show_cnds(
+          message = format_inline("for coreid {.field {coreid}}"),
+          .call = this_call
+        )
+      out$result
+    }
+  )
+  return(ds)
+}
 
 #' @param json sdds data in JSON format
 #' @describeIn sdds_parser parses tree structure sent by the sddsPublishTree event
 #' @export
 sdds_parse_tree <- function(json) {
   # get json
+  if (is.na(json)) {
+    return(tibble(enums = list(NULL), tree = list(NULL)))
+  }
   tree <- json |> parse_json()
 
   # safety checks if it's a tree
@@ -254,8 +331,11 @@ sdds_parse_tree <- function(json) {
 
 #' @describeIn sdds_parser parses values structure sent by the sddsPublishValues event
 #' @export
-sdds_parse_treevalues <- function(json) {
+sdds_parse_values <- function(json) {
   # get json
+  if (is.na(json)) {
+    return(tibble(values = list(NULL)))
+  }
   values <- json |> parse_json()
 
   # safety checks if it's a tree
@@ -271,13 +351,15 @@ sdds_parse_treevalues <- function(json) {
   }
 
   # extract values
-  values <- values |>
+  values <- values[["d"]] |>
     expand_values() |>
     dplyr::mutate(
       v_int = .data$value |>
         purrr::map_int(~ if (is.integer(.x)) .x else NA_integer_),
       v_dbl = .data$value |>
-        purrr::map_dbl(~ if (is.double(.x)) .x else NA_real_),
+        # store any numeric (both integer and double) in the double column
+        # for later matching with tree (in case double is exactly xx.00)
+        purrr::map_dbl(~ if (is.numeric(.x)) .x else NA_real_),
       v_text = .data$value |>
         purrr::map_chr(~ if (is.character(.x)) .x else NA_character_),
 
@@ -295,7 +377,7 @@ sdds_parse_treevalues <- function(json) {
 
   # assemble tibble
   dplyr::tibble(
-    values = list(values |> select(-"value"))
+    values = list(values |> dplyr::select(-"value"))
   )
 }
 
@@ -317,6 +399,97 @@ expand_values <- function(v, parent_idx = NA_character_) {
     dplyr::bind_rows()
 }
 
+# combine data ======
+
+#' @describeIn sdds_parser combines parsed tree tibble (from [sdds_parse_tree]) and values tibble (from [sdds_parse_values])
+#' @export
+sdds_combine_tree_and_values <- function(tree, values) {
+  # safety checks
+  values |>
+    check_tibble(
+      req_cols = c(
+        "idx_path",
+        "v_int",
+        "v_dbl",
+        "v_text",
+        "is_null",
+        "unknown_type"
+      )
+    )
+  tree |>
+    check_tibble(
+      req_cols = c("path", "idx_path", "is_struct", "is_enum", "enum_values")
+    )
+
+  # combine
+  tree_w_values <-
+    dplyr::full_join(tree, values, by = "idx_path") |>
+    dplyr::mutate(
+      is_null = !.data$is_struct & .data$is_null,
+      v_enum = purrr::pmap_chr(
+        list(.data$is_enum, .data$v_int, .data$enum_values),
+        function(is_enum, v_int, enum_values) {
+          if (is_enum && v_int %in% (seq_along(enum_values) - 1L)) {
+            enum_values[v_int + 1L]
+          } else {
+            NA_character_
+          }
+        }
+      ),
+      v_missing = !.data$is_struct & is.na(.data$unknown_type),
+      v_valid = .data$v_missing |
+        .data$is_struct |
+        .data$is_null |
+        (.data$is_int & !is.na(.data$v_int)) |
+        (.data$is_dbl & !is.na(.data$v_dbl)) |
+        (.data$is_text & !is.na(.data$v_text)) |
+        (.data$is_enum & !is.na(.data$v_int) & !is.na(.data$v_enum)),
+      struc_missing = is.na(.data$path)
+    ) |>
+    dplyr::relocate("v_enum", .after = "v_int")
+
+  # warning messages
+  if (
+    any(
+      tree_w_values$struc_missing |
+        tree_w_values$v_missing |
+        !tree_w_values$v_valid
+    )
+  ) {
+    info <- c()
+    if (any(tree_w_values$struc_missing)) {
+      info <- info |>
+        c(
+          "{sum(tree_w_values$struc_missing)} value{?s} do not seem to belong into the structure"
+        )
+    }
+    if (any(tree_w_values$v_missing)) {
+      info <- info |>
+        c(
+          "{sum(tree_w_values$v_missing)} value{?s} are missing",
+        )
+    }
+    if (any(!tree_w_values$v_valid)) {
+      info <- info |>
+        c(
+          "{sum(!tree_w_values$v_valid)} value{?s} are not valid"
+        )
+    }
+    cli_warn(
+      c(
+        "encountered issues matching the provided values with the tree",
+        info |> set_names(rep("i", length(info)))
+      )
+    )
+  }
+
+  # return (a bit cleaned up)
+  return(
+    tree_w_values |>
+      dplyr::filter(!.data$struc_missing) |>
+      dplyr::select(-"unknown_type", -"struc_missing")
+  )
+}
 
 # helper functions ========
 
