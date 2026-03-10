@@ -5,7 +5,7 @@
   raw_data_log = "logs/particle_stream_raw_data.tsv",
   errors_log = "logs/particle_stream_errors.tsv",
   events_log = "logs/particle_stream_events.tsv",
-  pool = curl::new_pool(total_con = 1),
+  pool = NULL, # set in .onLoad
   endpoint = "",
   log = TRUE,
   active = FALSE,
@@ -15,7 +15,8 @@
   msg_idx = 0L, # number of messages received
   buffer = raw(), # stream buffer
   events = tibble::tibble(timestamp = integer(0) |> as.POSIXct()),
-  monitor_last_event_ts = lubridate::now(tz = 'UTC')
+  events_callback = NA_character_, # name of a callback function for events
+  monitor_last_event_ts = NULL # set in .onLoad
 )
 
 # particle stream exported functions =======
@@ -24,17 +25,24 @@
 #' @param endpoint which particle endpoint to connect to, by default connects to the sddsData endpoint
 #' @param token the particle access token
 #' @param log enable log files to store connection, raw data, error, and event information for debugging purposes
+#' @param events_callback name of a callback function for events (turn off call back by setting \code{events_callback = NA_character_})
 #' @describeIn particle_stream connects to the stream
 #' @export
 particle_stream_connect <- function(
   endpoint = "events/sddsData",
   token = keyring::key_get("particle"),
-  log = FALSE
+  log = FALSE,
+  events_callback = "sdds_cache_events"
 ) {
   # safety
   endpoint |> check_arg(is_scalar_character(endpoint), "must be a string")
   log |> check_arg(is_scalar_logical(log), "must be TRUE or FALSE")
   token |> check_particle_token()
+  events_callback |>
+    check_arg(
+      is_null(events_callback) || is_scalar_character(events_callback),
+      "must be the name of a function"
+    )
 
   # disconnect any existing connection
   ps_cleanup()
@@ -43,6 +51,9 @@ particle_stream_connect <- function(
   .ps$endpoint <- endpoint
   .ps$log <- log
   Sys.setenv(PARTICLE_EVENT_STREAM_TMP_TOKEN = token)
+  if (!is.null(events_callback)) {
+    .ps$events_callback <- events_callback
+  }
 
   # create handle for particle endpoint
   sse_url <- sprintf("https://api.particle.io/v1/%s", endpoint)
@@ -57,7 +68,7 @@ particle_stream_connect <- function(
   # start connection
   cli_bullets(
     c(
-      "i" = "Connecting to Particle events stream endpoint {.field endpoint} (log files are {.emph {if (log) 'enabled' else 'disabled'}})",
+      "i" = "Connecting to Particle events stream endpoint {.field endpoint} (log files are {.emph {if (log) 'enabled' else 'disabled'}}), events are{if (is.na(.ps$events_callback)) ' not'} processed{if (!is.na(.ps$events_callback)) paste0(' with ', .ps$events_callback, '()')}",
       ">" = "use {.strong particle_stream_monitor()} to automatically printout incoming events",
       ">" = "use {.strong particle_stream_is_connected()} to check on the connection status",
       ">" = "use {.strong particle_stream_get_events()} to get the collected events",
@@ -119,6 +130,17 @@ particle_stream_connect <- function(
         # store events
         ps_update_events_log(events)
         .ps$events <- .ps$events |> dplyr::bind_rows(events)
+
+        # process events if there is a callback function
+        if (!is.na(.ps$events_callback)) {
+          callback <- call2(.ps$events_callback, quote(events))
+          tryCatch(
+            callback |> eval_tidy(),
+            error = function(err) {
+              ps_update_error_log(err)
+            }
+          )
+        }
       },
 
       done = function(response) {
@@ -242,11 +264,13 @@ ps_reconnect <- function() {
 # cleanup
 ps_cleanup <- function() {
   if (.ps$active) {
-    # make sure to close all handles in the pool
-    curl::multi_list(.ps$pool) |>
-      lapply(function(handle) {
-        try(curl::multi_cancel(handle))
-      })
+    if (!is.null(.ps$pool)) {
+      # cancel all pending handles before releasing the pool
+      curl::multi_list(.ps$pool) |>
+        lapply(function(handle) try(curl::multi_cancel(handle)))
+      # drain any remaining callbacks
+      try(curl::multi_run(pool = .ps$pool, timeout = 0))
+    }
     # log the disconnect if the connection was successfully established
     if (.ps$connected) {
       ps_update_connections_log(FALSE)
