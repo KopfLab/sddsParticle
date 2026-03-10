@@ -6,6 +6,7 @@
 # @param catch_errors whether to catch errors (vs. throwing them)
 # @param catch_warnigns whether to catch warnings (vs. throwing them)
 # @param truncate_call_stack whether to omit the try_catch_cnds calls from the resulting call stack in errors
+# @param call caller env - only relevant if re-throwing the error (catch_errors = FALSE)
 # @return list with result and conditions, use show_cnds(out$conditions) to show conditions if any were caught
 try_catch_cnds <- function(
   expr,
