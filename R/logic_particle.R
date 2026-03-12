@@ -92,7 +92,11 @@ particle_get_device_info <- function(
         dplyr::filter(
             purrr::map_lgl(
                 .data$functions,
-                ~ if (sdds_only) "sdds" %in% .x else TRUE
+                ~ if (sdds_only) {
+                    all(c("sdds", "sendSdds", "sendSddsValues") %in% .x)
+                } else {
+                    TRUE
+                }
             )
         )
 }
