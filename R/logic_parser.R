@@ -265,8 +265,8 @@ sdds_parse_trees_and_values <- function(ds) {
 #' @export
 sdds_parse_tree <- function(json) {
   # get json
-  if (is.na(json)) {
-    return(tibble(enums = list(NULL), tree = list(NULL)))
+  if (!missing(json) && !is_empty(json) && is.na(json[1])) {
+    return(tibble(values = list(NULL)))
   }
   tree <- json |> parse_json()
 
@@ -333,7 +333,7 @@ sdds_parse_tree <- function(json) {
 #' @export
 sdds_parse_values <- function(json) {
   # get json
-  if (is.na(json)) {
+  if (!missing(json) && !is_empty(json) && is.na(json[1])) {
     return(tibble(values = list(NULL)))
   }
   values <- json |> parse_json()
@@ -397,6 +397,61 @@ expand_values <- function(v, parent_idx = NA_character_) {
   v |>
     purrr::map2(seq_along(v), expand_value, parent_idx = parent_idx) |>
     dplyr::bind_rows()
+}
+
+#' @describeIn sdds_parser parses the command log from a device (retrieved via particle_get_sdds_command_log())
+#' @export
+sdds_parse_command_log <- function(json) {
+  # empty tibble
+  empty_return <- tibble()
+
+  # get json
+  if (!missing(json) && !is_empty(json) && is.na(json[1])) {
+    return(empty_return)
+  }
+  commands <- json |> parse_json()
+  if (is_empty(commands)) {
+    return(empty_return)
+  }
+
+  # safety checks if it's a command log
+  req <- c("l", "tb")
+  if (!all(req %in% names(commands))) {
+    missing <- setdiff(req, names(commands))
+    cli_abort(
+      c(
+        "this is not a complete command log: structure entr{?y/ies} {.var {missing}} not found",
+        "i" = "{length(names(commands))} available entr{?y/ies}: {.var {names(commands)}}"
+      )
+    )
+  }
+
+  # error codes
+  err_codes <- c(
+    "portParseErr",
+    "pathNotFound",
+    "pathNoStruct",
+    "pathNullPtr",
+    "invPort",
+    "invFunc"
+  )
+
+  # parse
+  tb <- lubridate::ymd_hms(commands$tb)
+  cmds_formatted <- tibble(
+    datetime = tb +
+      # offset is in milliseconds --> divide by 1000
+      lubridate::seconds(purrr::map_int(commands$l, ~ .x[[1]]) / 1000),
+    cmd = commands$l |> purrr::map_chr(~ .x[[2]]),
+    retval = commands$l |> purrr::map_int(~ .x[[3]])
+  ) |>
+    dplyr::left_join(
+      err_codes |> tibble::enframe(name = "retval", value = "error_code"),
+      by = "retval"
+    )
+
+  # return
+  return(cmds_formatted)
 }
 
 # combine data ======

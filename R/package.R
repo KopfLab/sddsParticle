@@ -4,7 +4,7 @@
 ## usethis namespace: start
 #' @import cli
 #' @import rlang
-#' @importFrom dplyr tibble
+#' @importFrom tibble tibble
 ## usethis namespace: end
 NULL
 
