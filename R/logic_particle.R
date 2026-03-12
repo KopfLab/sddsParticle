@@ -15,9 +15,9 @@ check_particle_token <- function(token, call = caller_call()) {
     invisible(NULL)
 }
 
-#' Set a particle access token
+#' Interact with the particle API
 #'
-#' This function securely stores the access token using the system keyring.
+#' @describeIn particle_api securely stores the access token using your OS keyring
 #' @export
 particle_store_token <- function() {
     keyring::key_set(service = "particle")
@@ -25,10 +25,59 @@ particle_store_token <- function() {
 
 # particle functions =============
 
-#' Get devices
-#' @param token particle access token
+# helper function to make a particle cloud request
+# @param endpoint the url endpoint for the request, typically devices/<device_id>/variable or devices/<device_id>/function
+# @param arg request argument --> required for function calls! even if just \code{""}. without this it checks a variable isntead
+# @param timeout how long to wait for curl request
+send_request <- function(
+    endpoint,
+    arg = NULL,
+    timeout = 3,
+    token = keyring::key_get("particle"),
+    .call = caller_call()
+) {
+    # safety checks
+    endpoint |>
+        check_arg(
+            !missing(endpoint) && is_scalar_character(endpoint),
+            "must be a string"
+        )
+    arg |>
+        check_arg(is.null(arg) || is_scalar_character(arg), "must be a string")
+    token |> check_particle_token()
+
+    # request
+    handle <- curl::new_handle(timeout = timeout)
+    request <- sprintf("https://api.particle.io/v1/%s", endpoint)
+    if (!is.null(arg)) {
+        # post
+        post <- sprintf("access_token=%s&arg=%s", token, utils::URLencode(arg))
+        handle <- handle |> curl::handle_setopt(copypostfields = post)
+    } else {
+        # get
+        request <- sprintf("%s?access_token=%s", request, token)
+    }
+
+    # send
+    out <- try_catch_cnds({
+        fetch <- request |> curl::curl_fetch_memory(handle = handle)
+        data <- fetch$content |> rawToChar() |> jsonlite::fromJSON()
+        if (!is.null(data$error)) {
+            cli_abort("{cli::col_red(data$error)} - {data$error_description}")
+        }
+        data
+    })
+
+    # stop if errors
+    abort_cnds(out$conditions, .call = .call)
+
+    # return
+    return(out$result)
+}
+
+#' @param token particle access token (retrieved from keyring by default)
 #' @param sdds_only whether to only return SDDS devices (default TRUE)
-#' @return tibble of particle SDDS devices registered to the account
+#' @describeIn particle_api retrieve the particle SDDS devices registered to your account
 #' @export
 particle_get_device_info <- function(
     token = keyring::key_get("particle"),
@@ -36,39 +85,83 @@ particle_get_device_info <- function(
 ) {
     # safety checks
     check_arg(sdds_only, is_scalar_logical(sdds_only), "must be TRUE or FALSE")
-    check_particle_token(token)
-
-    endpoint <- "devices"
-    request <- sprintf(
-        "https://api.particle.io/v1/%s?access_token=%s",
-        endpoint,
-        token
-    )
-
-    # request
-    handle <- curl::new_handle(timeout = 3)
-    out <- try_catch_cnds({
-        fetch <- request |>
-            curl::curl_fetch_memory(handle = handle)
-        data <- fetch$content |>
-            rawToChar() |>
-            jsonlite::fromJSON()
-        if (!is.null(data$error)) {
-            cli_abort("{cli::col_red(data$error)} - {data$error_description}")
-        }
-        data |>
-            tibble::as_tibble() |>
-            dplyr::filter(
-                purrr::map_lgl(
-                    .data$functions,
-                    ~ if (sdds_only) "sdds" %in% .x else TRUE
-                )
+    # get devices
+    send_request("devices", token = token) |>
+        tibble::as_tibble() |>
+        # filter for sdds devices
+        dplyr::filter(
+            purrr::map_lgl(
+                .data$functions,
+                ~ if (sdds_only) "sdds" %in% .x else TRUE
             )
-    })
+        )
+}
 
-    # stop if errors
-    abort_cnds(out$conditions)
+#' @param coreid the ID of the particle device to send requests and commands to
+#' @describeIn particle_api request the self-describing data structure (sdds) from the device, returns a tibble with `id`, `name`, `connected` and `return_value` (0 = success)
+#' @export
+particle_request_sdds <- function(
+    coreid,
+    token = keyring::key_get("particle")
+) {
+    # safety checks
+    coreid |>
+        check_arg(
+            !missing(coreid) && is_scalar_character(coreid),
+            "must provide a particle coreid"
+        )
+    sprintf("devices/%s/sendSdds", coreid) |>
+        send_request(token = token, arg = "")
+}
 
-    # result
-    return(out$result)
+#' @describeIn particle_api request the SDDS tree values from the device, returns a tibble with `id`, `name`, `connected` and `return_value` (0 = success)
+#' @export
+particle_request_sdds_values <- function(
+    coreid,
+    token = keyring::key_get("particle")
+) {
+    # safety checks
+    coreid |>
+        check_arg(
+            !missing(coreid) && is_scalar_character(coreid),
+            "must provide a particle coreid"
+        )
+    sprintf("devices/%s/sendSddsValues", coreid) |>
+        send_request(token = token, arg = "")
+}
+
+#' @describeIn particle_api get the sdds command log from a device, returns a string that's in JSON format, use [sdds_parse_command_log] to process
+#' @export
+particle_get_sdds_command_log <- function(
+    coreid,
+    token = keyring::key_get("particle")
+) {
+    # safety checks
+    coreid |>
+        check_arg(
+            !missing(coreid) && is_scalar_character(coreid),
+            "must provide a particle coreid"
+        )
+    result <- sprintf("devices/%s/getSddsCommandLog", coreid) |>
+        send_request(token = token)
+    return(result$result)
+}
+
+#' @param cmds SDDS command to send
+#' @describeIn particle_api sends the \code{cmds} to the particle device, returns a tibble with `id`, `name`, `connected` and `return_value` (0 = success, > 0 bit-wise indicator of commands that failed, < 0 the exact error code if it was a single command)
+#' @export
+particle_send_sdds_commands <- function(
+    coreid,
+    cmds = character(),
+    token = keyring::key_get("particle")
+) {
+    # safety checks
+    coreid |>
+        check_arg(
+            !missing(coreid) && is_scalar_character(coreid),
+            "must provide a particle coreid"
+        )
+    cmds |> check_arg(is_character(cmds))
+    sprintf("devices/%s/sdds", coreid) |>
+        send_request(token = token, arg = paste(cmds, collapse = " "))
 }
