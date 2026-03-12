@@ -226,7 +226,7 @@ read_cached_treevalues <- function(cache_path = "cache/sdds_values.csv") {
 
 # parse data =========
 
-#' @param ds tibble with values_json and tree_json columns
+#' @param ds tibble with values_json and tree_json columns, e.g. that created by [sdds_read_cached_trees_and_values]
 #' @describeIn sdds_parser parses tree structure and values from tibble
 sdds_parse_trees_and_values <- function(ds) {
   # safety checks
@@ -261,7 +261,7 @@ sdds_parse_trees_and_values <- function(ds) {
 }
 
 #' @param json sdds data in JSON format
-#' @describeIn sdds_parser parses tree structure sent by the sddsPublishTree event
+#' @describeIn sdds_parser parses tree structure sent by the sddsPublishTree event, usually not called directly but by [sdds_parse_trees_and_values]
 #' @export
 sdds_parse_tree <- function(json) {
   # get json
@@ -329,7 +329,7 @@ sdds_parse_tree <- function(json) {
   )
 }
 
-#' @describeIn sdds_parser parses values structure sent by the sddsPublishValues event
+#' @describeIn sdds_parser parses values structure sent by the sddsPublishValues event, usually not called directly but by [sdds_parse_trees_and_values]
 #' @export
 sdds_parse_values <- function(json) {
   # get json
@@ -399,64 +399,9 @@ expand_values <- function(v, parent_idx = NA_character_) {
     dplyr::bind_rows()
 }
 
-#' @describeIn sdds_parser parses the command log from a device (retrieved via particle_get_sdds_command_log())
-#' @export
-sdds_parse_command_log <- function(json) {
-  # empty tibble
-  empty_return <- tibble()
-
-  # get json
-  if (!missing(json) && !is_empty(json) && is.na(json[1])) {
-    return(empty_return)
-  }
-  commands <- json |> parse_json()
-  if (is_empty(commands)) {
-    return(empty_return)
-  }
-
-  # safety checks if it's a command log
-  req <- c("l", "tb")
-  if (!all(req %in% names(commands))) {
-    missing <- setdiff(req, names(commands))
-    cli_abort(
-      c(
-        "this is not a complete command log: structure entr{?y/ies} {.var {missing}} not found",
-        "i" = "{length(names(commands))} available entr{?y/ies}: {.var {names(commands)}}"
-      )
-    )
-  }
-
-  # error codes
-  err_codes <- c(
-    "portParseErr",
-    "pathNotFound",
-    "pathNoStruct",
-    "pathNullPtr",
-    "invPort",
-    "invFunc"
-  )
-
-  # parse
-  tb <- lubridate::ymd_hms(commands$tb)
-  cmds_formatted <- tibble(
-    datetime = tb +
-      # offset is in milliseconds --> divide by 1000
-      lubridate::seconds(purrr::map_int(commands$l, ~ .x[[1]]) / 1000),
-    cmd = commands$l |> purrr::map_chr(~ .x[[2]]),
-    retval = commands$l |> purrr::map_int(~ .x[[3]])
-  ) |>
-    dplyr::left_join(
-      err_codes |> tibble::enframe(name = "retval", value = "error_code"),
-      by = "retval"
-    )
-
-  # return
-  return(cmds_formatted)
-}
-
-# combine data ======
-
-#' @describeIn sdds_parser combines parsed tree tibble (from [sdds_parse_tree]) and values tibble (from [sdds_parse_values])
+#' @param tree from [sdds_parse_tree]
+#' @param values from [sdds_parse_values]
+#' @describeIn sdds_parser combines parsed tree tibble (from [sdds_parse_tree]) and values tibble (from [sdds_parse_values]), usually not called directly but by[sdds_parse_trees_and_values]
 #' @export
 sdds_combine_tree_and_values <- function(tree, values) {
   # safety checks
@@ -544,6 +489,146 @@ sdds_combine_tree_and_values <- function(tree, values) {
       dplyr::filter(!.data$struc_missing) |>
       dplyr::select(-"unknown_type", -"struc_missing")
   )
+}
+
+
+#' @param trees_and_values output from [sdds_parse_trees_and_values]
+#' @describeIn sdds_parser simplifies combined trees and values (from [sdds_parse_trees_and_values]), removes the structures themselves only leaving actual data fields
+#' @export
+sdds_simplify_trees_and_values <- function(trees_and_values) {
+  # safety checks
+  trees_and_values |> check_tibble(c("coreid", "published_at", "tree_w_values"))
+
+  # unnest and parse
+  trees_and_values |>
+    dplyr::select("coreid", "published_at", "tree_w_values") |>
+    tidyr::unnest("tree_w_values") |>
+    dplyr::mutate(
+      # as datetime
+      published_at = .data$published_at |> lubridate::ymd_hms(),
+      # figure out the parent
+      parent = dplyr::if_else(
+        !.data$is_struct,
+        stringr::str_remove(.data$path, "\\.[^.]+$"),
+        .data$path
+      ) |>
+        # remove all units
+        stringr::str_remove_all("_[^.]+"),
+      # figure out the measurement base unit
+      base_units = .data$path |>
+        stringr::str_extract("(?<=_)([^.$]+)(?=(\\.|$))") |>
+        stringr::str_replace_all("_", "/"),
+      # figure out the label (without units)
+      label = name |> stringr::str_remove("_.*$"),
+      # figure out the text value
+      value = dplyr::case_when(
+        .data$v_missing | !.data$v_valid | .data$is_struct ~ NA_character_,
+        .data$is_enum ~ .data$v_enum,
+        .data$is_int ~ as.character(.data$v_int),
+        .data$is_dbl ~ as.character(signif(.data$v_dbl, 4)),
+        TRUE ~ .data$v_text
+      ),
+      # text value with units
+      value_w_units = dplyr::if_else(
+        !is.na(.data$value) & !is.na(.data$base_units),
+        paste0(.data$value, " ", .data$base_units),
+        .data$value
+      ),
+      # individual var publish intervals
+      is_var_interval = stringr::str_detect(
+        .data$parent,
+        stringr::fixed("SYSTEM.publishing.varIntervals")
+      )
+    ) |>
+    # bring in special meanings of the varIntervals
+    dplyr::left_join(
+      tibble(
+        is_var_interval = TRUE,
+        value_w_units = c("-1 ms", "0 ms", "1 ms", "2 ms"),
+        actual_value = c(
+          "send at global interval (if publishing)",
+          "never send",
+          "send immediately (if publishing)",
+          "send immediately (always)"
+        )
+      ),
+      by = c("is_var_interval", "value_w_units")
+    ) |>
+    dplyr::mutate(
+      value_w_units = dplyr::if_else(
+        !is.na(.data$actual_value),
+        .data$actual_value,
+        .data$value_w_units
+      )
+    ) |>
+    # filter out structures
+    dplyr::filter(!.data$is_struct) |>
+    # no longer need these columns
+    dplyr::select(
+      -"idx_path",
+      -"type",
+      -"options",
+      -"data_type",
+      -"is_struct",
+      -"is_null",
+      -"v_missing",
+      -"v_valid"
+    )
+}
+
+#' @describeIn sdds_parser parses the command log from a device (retrieved via particle_get_sdds_command_log())
+#' @export
+sdds_parse_command_log <- function(json) {
+  # empty tibble
+  empty_return <- tibble()
+
+  # get json
+  if (!missing(json) && !is_empty(json) && is.na(json[1])) {
+    return(empty_return)
+  }
+  commands <- json |> parse_json()
+  if (is_empty(commands)) {
+    return(empty_return)
+  }
+
+  # safety checks if it's a command log
+  req <- c("l", "tb")
+  if (!all(req %in% names(commands))) {
+    missing <- setdiff(req, names(commands))
+    cli_abort(
+      c(
+        "this is not a complete command log: structure entr{?y/ies} {.var {missing}} not found",
+        "i" = "{length(names(commands))} available entr{?y/ies}: {.var {names(commands)}}"
+      )
+    )
+  }
+
+  # error codes
+  err_codes <- c(
+    "portParseErr",
+    "pathNotFound",
+    "pathNoStruct",
+    "pathNullPtr",
+    "invPort",
+    "invFunc"
+  )
+
+  # parse
+  tb <- lubridate::ymd_hms(commands$tb)
+  cmds_formatted <- tibble(
+    datetime = tb +
+      # offset is in milliseconds --> divide by 1000
+      lubridate::seconds(purrr::map_int(commands$l, ~ .x[[1]]) / 1000),
+    cmd = commands$l |> purrr::map_chr(~ .x[[2]]),
+    retval = commands$l |> purrr::map_int(~ .x[[3]])
+  ) |>
+    dplyr::left_join(
+      err_codes |> tibble::enframe(name = "retval", value = "error_code"),
+      by = "retval"
+    )
+
+  # return
+  return(cmds_formatted)
 }
 
 # helper functions ========
