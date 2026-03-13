@@ -266,7 +266,7 @@ sdds_parse_trees_and_values <- function(ds) {
 sdds_parse_tree <- function(json) {
   # get json
   if (!missing(json) && !is_empty(json) && is.na(json[1])) {
-    return(tibble(values = list(NULL)))
+    return(tibble(enums = list(NULL), tree = list(NULL)))
   }
   tree <- json |> parse_json()
 
@@ -579,16 +579,13 @@ sdds_simplify_trees_and_values <- function(trees_and_values) {
 #' @describeIn sdds_parser parses the command log from a device (retrieved via particle_get_sdds_command_log())
 #' @export
 sdds_parse_command_log <- function(json) {
-  # empty tibble
-  empty_return <- tibble()
-
   # get json
   if (!missing(json) && !is_empty(json) && is.na(json[1])) {
-    return(empty_return)
+    return(tibble())
   }
   commands <- json |> parse_json()
   if (is_empty(commands)) {
-    return(empty_return)
+    return(tibble())
   }
 
   # safety checks if it's a command log
