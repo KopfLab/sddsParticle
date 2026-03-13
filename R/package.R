@@ -5,6 +5,7 @@
 #' @import cli
 #' @import rlang
 #' @importFrom tibble tibble
+#' @import shiny
 ## usethis namespace: end
 NULL
 
