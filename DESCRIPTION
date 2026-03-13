@@ -1,9 +1,9 @@
 Package: sddsParticle
-Title: What the Package Does (One Line, Title Case)
-Version: 0.0.0.9000
+Title: Control SDDS Particle Devices
+Version: 0.1.0.9000
 Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
+    person("Sebastian", "Kopf", , "seb.kopf@gmail.com", role = c("aut", "cre"))
+Description: This package provides a control GUI for self-describing data structures (SDDS) run on Particle devices.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
@@ -16,7 +16,24 @@ Imports:
     keyring (>= 1.4.0),
     curl,
     jsonlite,
-    lubridate,
+    tibble,
     dplyr,
     tidyr,
-    readr
+    readr,
+    stringr,
+    lubridate,
+    shiny,
+    DT,
+    rlog,
+    htmltools,
+    shinydashboard,
+    shinytoastr,
+    shinyjs,
+    shinycssloaders,
+    prompter
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+URL: https://github.com/KopfLab/sddsParticle
+BugReports: https://github.com/KopfLab/sddsParticle/issues
+Language: en-US
