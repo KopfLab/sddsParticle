@@ -11,7 +11,8 @@
 particle_stream_connect(
   endpoint = "events/sddsData",
   token = keyring::key_get("particle"),
-  log = FALSE
+  log = FALSE,
+  events_callback = "sdds_cache_events"
 )
 
 particle_stream_disconnect()
@@ -28,6 +29,8 @@ particle_stream_monitor(poll_interval = 1)
 \item{token}{the particle access token}
 
 \item{log}{enable log files to store connection, raw data, error, and event information for debugging purposes}
+
+\item{events_callback}{name of a callback function for events (turn off call back by setting \code{events_callback = NA_character_})}
 
 \item{poll_interval}{how many seconds between polling stream}
 }

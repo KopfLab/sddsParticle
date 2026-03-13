@@ -4,12 +4,20 @@
 \name{sddsParticle-package}
 \alias{sddsParticle}
 \alias{sddsParticle-package}
-\title{sddsParticle: What the Package Does (One Line, Title Case)}
+\title{sddsParticle: Control SDDS Particle Devices}
 \description{
-What the package does (one paragraph).
+This package provides a control GUI for self-describing data structures (SDDS) run on Particle devices.
+}
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://github.com/KopfLab/sddsParticle}
+  \item Report bugs at \url{https://github.com/KopfLab/sddsParticle/issues}
+}
+
 }
 \author{
-\strong{Maintainer}: First Last \email{first.last@example.com}
+\strong{Maintainer}: Sebastian Kopf \email{seb.kopf@gmail.com}
 
 }
 \keyword{internal}
