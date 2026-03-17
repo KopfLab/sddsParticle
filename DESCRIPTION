@@ -19,9 +19,11 @@ Imports:
     tibble,
     dplyr,
     tidyr,
+    purrr,
     readr,
     stringr,
     lubridate,
+    digest,
     shiny,
     DT,
     rlog,
@@ -30,6 +32,7 @@ Imports:
     shinytoastr,
     shinyjs,
     shinycssloaders,
+    shinyAce,
     prompter
 Suggests: 
     testthat (>= 3.0.0)
