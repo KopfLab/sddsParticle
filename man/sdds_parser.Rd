@@ -29,9 +29,13 @@ sdds_parse_values(json)
 
 sdds_combine_tree_and_values(tree, values)
 
-sdds_simplify_trees_and_values(trees_and_values)
+sdds_simplify_trees_and_values(
+  trees_and_values,
+  devices,
+  timezone = Sys.timezone()
+)
 
-sdds_parse_command_log(json)
+sdds_parse_command_log(json, timezone = Sys.timezone())
 }
 \arguments{
 \item{events}{tibble from particle_stream_get_events()}
