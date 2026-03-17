@@ -88,6 +88,7 @@ particle_get_device_info <- function(
     # get devices
     send_request("devices", token = token) |>
         tibble::as_tibble() |>
+        dplyr::rename("coreid" = "id") |>
         # filter for sdds devices
         dplyr::filter(
             purrr::map_lgl(

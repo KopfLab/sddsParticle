@@ -14,7 +14,10 @@
   reconnect_max_delay = 30, # seconds
   msg_idx = 0L, # number of messages received
   buffer = raw(), # stream buffer
-  events = tibble::tibble(timestamp = integer(0) |> as.POSIXct()),
+  events = tibble::tibble(
+    timestamp = integer() |> as.POSIXct(),
+    coreid = character()
+  ),
   events_callback = NA_character_, # name of a callback function for events
   monitor_last_event_ts = NULL # set in .onLoad
 )

@@ -495,17 +495,26 @@ sdds_combine_tree_and_values <- function(tree, values) {
 #' @param trees_and_values output from [sdds_parse_trees_and_values]
 #' @describeIn sdds_parser simplifies combined trees and values (from [sdds_parse_trees_and_values]), removes the structures themselves only leaving actual data fields
 #' @export
-sdds_simplify_trees_and_values <- function(trees_and_values) {
+sdds_simplify_trees_and_values <- function(
+  trees_and_values,
+  devices,
+  timezone = Sys.timezone()
+) {
   # safety checks
   trees_and_values |> check_tibble(c("coreid", "published_at", "tree_w_values"))
+  if (nrow(trees_and_values) == 0) {
+    return(tibble())
+  }
 
   # unnest and parse
-  trees_and_values |>
+  out <- trees_and_values |>
     dplyr::select("coreid", "published_at", "tree_w_values") |>
     tidyr::unnest("tree_w_values") |>
     dplyr::mutate(
       # as datetime
-      published_at = .data$published_at |> lubridate::ymd_hms(),
+      published_at = .data$published_at |>
+        lubridate::ymd_hms() |>
+        lubridate::with_tz(timezone),
       # figure out the parent
       parent = dplyr::if_else(
         !.data$is_struct,
@@ -520,7 +529,15 @@ sdds_simplify_trees_and_values <- function(trees_and_values) {
         stringr::str_replace_all("_", "/"),
       # figure out the label (without units)
       label = name |> stringr::str_remove("_.*$"),
-      # figure out the text value
+      # get raw value
+      raw = dplyr::case_when(
+        .data$v_missing | !.data$v_valid | .data$is_struct ~ list(NULL),
+        .data$is_enum ~ as.list(.data$v_enum),
+        .data$is_int ~ as.list(.data$v_int),
+        .data$is_dbl ~ as.list(.data$v_dbl),
+        TRUE ~ as.list(.data$v_text)
+      ),
+      # figure out the text value - FIXME: deal with datetime (units dt!)
       value = dplyr::case_when(
         .data$v_missing | !.data$v_valid | .data$is_struct ~ NA_character_,
         .data$is_enum ~ .data$v_enum,
@@ -554,6 +571,7 @@ sdds_simplify_trees_and_values <- function(trees_and_values) {
       ),
       by = c("is_var_interval", "value_w_units")
     ) |>
+    # combine with units
     dplyr::mutate(
       value_w_units = dplyr::if_else(
         !is.na(.data$actual_value),
@@ -571,21 +589,32 @@ sdds_simplify_trees_and_values <- function(trees_and_values) {
       -"data_type",
       -"is_struct",
       -"is_null",
-      -"v_missing",
-      -"v_valid"
-    )
+      -starts_with("v_")
+    ) |>
+    left_join(
+      devices |> select("coreid", "corename" = "name"),
+      by = "coreid"
+    ) |>
+    relocate("corename", .after = "coreid")
+  return(out)
 }
 
 #' @describeIn sdds_parser parses the command log from a device (retrieved via particle_get_sdds_command_log())
 #' @export
-sdds_parse_command_log <- function(json) {
+sdds_parse_command_log <- function(json, timezone = Sys.timezone()) {
   # get json
+  empty_return <- tibble(
+    datetime = integer() |> as.POSIXct(),
+    cmd = character(),
+    retval = integer(),
+    error_code = character()
+  )
   if (!missing(json) && !is_empty(json) && is.na(json[1])) {
-    return(tibble())
+    return(empty_return)
   }
   commands <- json |> parse_json()
   if (is_empty(commands)) {
-    return(tibble())
+    return(empty_return)
   }
 
   # safety checks if it's a command log
@@ -613,9 +642,10 @@ sdds_parse_command_log <- function(json) {
   # parse
   tb <- lubridate::ymd_hms(commands$tb)
   cmds_formatted <- tibble(
-    datetime = tb +
+    datetime = (tb +
       # offset is in milliseconds --> divide by 1000
-      lubridate::seconds(purrr::map_int(commands$l, ~ .x[[1]]) / 1000),
+      lubridate::seconds(purrr::map_int(commands$l, ~ .x[[1]]) / 1000)) |>
+      lubridate::with_tz(timezone),
     cmd = commands$l |> purrr::map_chr(~ .x[[2]]),
     retval = commands$l |> purrr::map_int(~ .x[[3]])
   ) |>
