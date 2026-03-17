@@ -67,8 +67,12 @@ log_error <- function(..., ns = NULL, user_msg = NULL, error = NULL) {
 }
 
 log_warning <- function(..., ns = NULL, user_msg = NULL, warning = NULL) {
+  msg <- paste0(..., collapse = "")
+  if (!nzchar(msg) && !is.null(user_msg)) {
+    msg <- user_msg
+  }
   log_any(
-    msg = paste0(..., collapse = ""),
+    msg = msg,
     ns = ns,
     log_fun = rlog::log_warn,
     toaster_fun = shinytoastr::toastr_warning,
@@ -80,8 +84,12 @@ log_warning <- function(..., ns = NULL, user_msg = NULL, warning = NULL) {
 }
 
 log_info <- function(..., ns = NULL, user_msg = NULL) {
+  msg <- paste0(..., collapse = "")
+  if (!nzchar(msg) && !is.null(user_msg)) {
+    msg <- user_msg
+  }
   log_any(
-    msg = paste0(..., collapse = ""),
+    msg = msg,
     ns = ns,
     log_fun = rlog::log_info,
     toaster_fun = shinytoastr::toastr_info,
@@ -90,8 +98,12 @@ log_info <- function(..., ns = NULL, user_msg = NULL) {
 }
 
 log_success <- function(..., ns = NULL, user_msg = NULL) {
+  msg <- paste0(..., collapse = "")
+  if (!nzchar(msg) && !is.null(user_msg)) {
+    msg <- user_msg
+  }
   log_any(
-    msg = paste0(..., collapse = ""),
+    msg = msg,
     ns = ns,
     log_fun = rlog::log_info,
     toaster_fun = shinytoastr::toastr_success,

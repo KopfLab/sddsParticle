@@ -1,5 +1,5 @@
 # server
-app_server <- function(timezone) {
+app_server <- function(token, timezone) {
   # return server function (input, output, and session parameters required by shiny)
   function(input, output, session) {
     log_info("\n\n========================================================")
@@ -7,6 +7,9 @@ app_server <- function(timezone) {
       "starting SDDS GUI session ",
       if (shiny::in_devmode()) " in DEV mode"
     )
+
+    # sdds server
+    sdds_server("sdds", token, timezone)
 
     # dev mode
     observeEvent(input$dev_mode_toggle, {

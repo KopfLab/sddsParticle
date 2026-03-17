@@ -29,7 +29,6 @@ app_ui <- function(timezone = NULL) {
         prompter::use_prompt(), # enable prompter
         tags$head(
           # css headers
-          # custom
           tags$style(
             type = "text/css",
             HTML(paste(
@@ -66,7 +65,7 @@ app_ui <- function(timezone = NULL) {
       )
 
     # body
-    body <- shinydashboard::dashboardBody(uiOutput("ui"), h1("Hello"))
+    body <- shinydashboard::dashboardBody(sdds_ui("sdds"))
 
     # dashboard page
     shinydashboard::dashboardPage(

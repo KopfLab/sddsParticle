@@ -23,8 +23,8 @@ sdds_run_gui <- function(
   # generate app
   shinyApp(
     ui = app_ui(timezone = timezone),
-    server = app_server(timezone = timezone),
-    onStart = app_onstart(token = token),
+    server = app_server(token = token, timezone = timezone),
+    onStart = sdds_onstart(token = token),
     options = options,
     enableBookmarking = enableBookmarking,
     uiPattern = uiPattern
