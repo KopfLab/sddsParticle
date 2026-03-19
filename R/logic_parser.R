@@ -176,7 +176,7 @@ cache_treevalues <- function(values, cache_path = "cache/sdds_values.csv") {
       !is.na(.data$coreid),
       !is.na(.data$type),
       !is.na(.data$version),
-      !is.na(.data$values_json)
+      !is.na(.data$texts_json)
     )
   if (nrow(values) == 0) {
     return()
@@ -498,7 +498,9 @@ sdds_combine_tree_and_values <- function(tree, values) {
 sdds_simplify_trees_and_values <- function(
   trees_and_values,
   devices,
-  timezone = Sys.timezone()
+  timezone = Sys.timezone(),
+  additional_types = list(),
+  additional_converters = list()
 ) {
   # safety checks
   trees_and_values |> check_tibble(c("coreid", "published_at", "tree_w_values"))
@@ -506,10 +508,65 @@ sdds_simplify_trees_and_values <- function(
     return(tibble())
   }
 
-  # unnest and parse
+  # types
+  types <- list(
+    "null" = expr(.data$v_missing | !.data$v_valid),
+    "enum" = expr(.data$is_enum),
+    "var_interval" = expr(.data$is_var_interval),
+    "duration" = expr(
+      .data$base_units %in% c("ms", "sec", "min", "hour", "day")
+    ),
+    "integer" = expr(.data$is_int),
+    "double" = expr(.data$is_dbl),
+    "text" = expr(TRUE)
+  )
+  types <- c(
+    additional_types,
+    types[!names(types) %in% names(additional_types)]
+  )
+
+  # text converters
+  converters <- list(
+    "null" = function(...) NA_character_,
+    "enum" = function(value, ...) as.character(value),
+    "var_interval" = var_intervals_value_to_text,
+    "duration" = duration_value_to_text,
+    "integer" = function(value, units) as.character(value) |> add_units(units),
+    "double" = function(value, units) {
+      as.character(signif(value, 4)) |> add_units(units)
+    },
+    "text" = function(value, units) as.character(value) |> add_units(units)
+  )
+  converters <- c(
+    additional_converters,
+    converters[!names(converters) %in% names(additional_converters)]
+  )
+
+  # safety check
+  if (
+    length(setdiff(names(types), names(converters))) > 0 ||
+      length(setdiff(names(converters), names(types))) > 0
+  ) {
+    cli_abort(
+      c(
+        "type and converter entries don't match: ",
+        "i" = "types: {names(types)}",
+        "i" = "converters: {names(converters)}}"
+      )
+    )
+  }
+
+  # unnest
   out <- trees_and_values |>
     dplyr::select("coreid", "published_at", "tree_w_values") |>
-    tidyr::unnest("tree_w_values") |>
+    tidyr::unnest("tree_w_values")
+
+  # parse
+  types_expr <- types |> purrr::imap(~ expr((!!.x) ~ !!.y))
+  out <- out |>
+    # filter out structures
+    dplyr::filter(!.data$is_struct) |>
+    # new columns
     dplyr::mutate(
       # as datetime
       published_at = .data$published_at |>
@@ -523,68 +580,46 @@ sdds_simplify_trees_and_values <- function(
       ) |>
         # remove all units
         stringr::str_remove_all("_[^.]+"),
+      # individual var publish intervals
+      is_var_interval = stringr::str_detect(
+        .data$parent,
+        stringr::fixed("SYSTEM.publishing.varIntervals")
+      ),
       # figure out the measurement base unit
       base_units = .data$path |>
         stringr::str_extract("(?<=_)([^.$]+)(?=(\\.|$))") |>
         stringr::str_replace_all("_", "/"),
       # figure out the label (without units)
       label = name |> stringr::str_remove("_.*$"),
-      # get raw value
-      raw = dplyr::case_when(
+      # get value as list
+      value = dplyr::case_when(
         .data$v_missing | !.data$v_valid | .data$is_struct ~ list(NULL),
         .data$is_enum ~ as.list(.data$v_enum),
         .data$is_int ~ as.list(.data$v_int),
         .data$is_dbl ~ as.list(.data$v_dbl),
         TRUE ~ as.list(.data$v_text)
       ),
-      # figure out the text value - FIXME: deal with datetime (units dt!)
-      value = dplyr::case_when(
-        .data$v_missing | !.data$v_valid | .data$is_struct ~ NA_character_,
-        .data$is_enum ~ .data$v_enum,
-        .data$is_int ~ as.character(.data$v_int),
-        .data$is_dbl ~ as.character(signif(.data$v_dbl, 4)),
-        TRUE ~ .data$v_text
-      ),
-      # text value with units
-      value_w_units = dplyr::if_else(
-        !is.na(.data$value) & !is.na(.data$base_units),
-        paste0(.data$value, " ", .data$base_units),
-        .data$value
-      ),
-      # individual var publish intervals
-      is_var_interval = stringr::str_detect(
-        .data$parent,
-        stringr::fixed("SYSTEM.publishing.varIntervals")
+      # get the data type
+      type = case_when(!!!types_expr),
+      # do the value to text conversion
+      text = purrr::pmap_chr(
+        list(value = .data$value, units = .data$base_units, type = .data$type),
+        function(value, units, type, converters = list()) {
+          if (type %in% names(converters)) {
+            as.character(converters[[type]](value, units))
+          } else {
+            NA_character_
+          }
+        },
+        converters = !!converters
       )
-    ) |>
-    # bring in special meanings of the varIntervals
-    dplyr::left_join(
-      tibble(
-        is_var_interval = TRUE,
-        value_w_units = c("-1 ms", "0 ms", "1 ms", "2 ms"),
-        actual_value = c(
-          "send at global interval (if publishing)",
-          "never send",
-          "send immediately (if publishing)",
-          "send immediately (always)"
-        )
-      ),
-      by = c("is_var_interval", "value_w_units")
-    ) |>
-    # combine with units
-    dplyr::mutate(
-      value_w_units = dplyr::if_else(
-        !is.na(.data$actual_value),
-        .data$actual_value,
-        .data$value_w_units
-      )
-    ) |>
-    # filter out structures
-    dplyr::filter(!.data$is_struct) |>
+    )
+
+  # cleanup
+  out <- out |>
     # no longer need these columns
     dplyr::select(
       -"idx_path",
-      -"type",
       -"options",
       -"data_type",
       -"is_struct",

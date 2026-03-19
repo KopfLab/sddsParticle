@@ -19,11 +19,11 @@ prepare_simplified_tree_w_values_for_table <- function(
       "path",
       "parent",
       "label",
-      "value_w_units"
+      "text"
     ) |>
     tidyr::pivot_wider(
       names_from = "device_info",
-      values_from = "value_w_units"
+      values_from = "text"
     )
 }
 
@@ -128,7 +128,7 @@ generate_value_input_rows <- function(ds, ns = NULL) {
           id = .data$coreid,
           label = .data$corename,
           type = .data$type,
-          value = .data$raw,
+          value = .data$value,
           choices = .data$enum_values,
           units = .data$base_units
         ),

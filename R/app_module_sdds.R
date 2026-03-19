@@ -119,7 +119,8 @@ sdds_server <- function(id, token, timezone, core_ids = NULL) {
     # reactive values =======
     values <- reactiveValues(
       show_system = FALSE,
-      show_hardware = FALSE
+      show_hardware = FALSE,
+      edit_structure = tibble()
     )
 
     # devices =============
@@ -248,7 +249,19 @@ sdds_server <- function(id, token, timezone, core_ids = NULL) {
         sdds_parse_trees_and_values() |>
         sdds_simplify_trees_and_values(
           devices = get_devices(),
-          timezone = timezone
+          timezone = timezone,
+          additional_types = list(
+            "resistance" = expr(.data$base_units == "Ohm")
+          ),
+          additional_converters = list("resistance" = function(value, units) {
+            if (value > 1e6) {
+              paste0(value / 1e6, " MOhm")
+            } else if (value > 1e3) {
+              paste0(value / 1e3, " kOhm")
+            } else {
+              paste0(value / 1e3, " Ohm")
+            }
+          })
         )
     })
 
@@ -297,13 +310,14 @@ sdds_server <- function(id, token, timezone, core_ids = NULL) {
 
     # trigger modal dialog
     observeEvent(structures$get_selected_ids(), {
-      print(structures$get_selected_ids())
       req(structures$get_selected_ids())
       path <- structures$get_selected_ids()
       structure <- get_structures() |> filter(.data$path == !!path)
       if (all(structure$readonly)) {
+        values$edit_structure <- tibble()
         log_info(user_msg = paste(path, "is read-only"))
       } else {
+        values$edit_structure <- structure
         modalDialog(
           title = h3(path),
           structure |> generate_value_input_rows(ns),
@@ -324,6 +338,46 @@ sdds_server <- function(id, token, timezone, core_ids = NULL) {
         ) |>
           showModal()
       }
+    })
+
+    # # FIXME: use this for validation - not needed for queuing values
+    # # --> that only happens when queueValue is pressed
+    # # observe value changes
+    # active_observers <- list()
+    # observe({
+    #   req(nrow(values$edit_structure) > 0)
+    #   for (coreid in values$edit_structure$coreid) {
+    #     local({
+    #       local_id <- coreid
+    #       # only create observer if it doesn't already exist
+    #       if (!local_id %in% names(active_observers)) {
+    #         active_observers[[local_id]] <<- observeEvent(
+    #           input[[local_id]],
+    #           {
+    #             log_debug(local_id, " changed to: ", input[[local_id]])
+    #           }
+    #         )
+    #       }
+    #     })
+    #   }
+
+    #   # destroy observers for removed devices
+    #   removed_ids <- names(active_observers) |>
+    #     setdiff(values$edit_structure$coreid)
+    #   for (id in removed_ids) {
+    #     active_observers[[id]]$destroy()
+    #     active_observers[[id]] <<- NULL
+    #   }
+    # })
+
+    # save edits
+    observeEvent(input$save_edit, {
+      req(nrow(values$edit_structure) > 0)
+      values <- tibble(
+        coreid = values$edit_structure$coreid,
+        new_raw = .data$coreid |> purrr::map(~ input[[.x]])
+      )
+      print(values)
     })
 
     # events stream ============
