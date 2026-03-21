@@ -67,6 +67,20 @@ prepare_stream_events_for_table <- function(events, timezone = Sys.timezone()) {
     )
 }
 
+## commands / value changes ======
+
+prepare_command_queue_entries <- function(tree_w_new_values) {
+  tree_w_new_values |>
+    mutate(
+      command = purrr::map2_chr(
+        .data$path,
+        .data$new_value,
+        ~ sprintf("%s=%s", .x, as.character(.y))
+      ),
+      status = NA_character_
+    )
+}
+
 ## command logs ===========
 
 # get command logs
@@ -110,63 +124,4 @@ prepare_command_logs_for_table <- function(
       "Command" = "cmd",
       "Error" = "error_code"
     )
-}
-
-# value editing =========
-
-# generate the value input rows from a tibble with
-generate_value_input_rows <- function(ds, ns = NULL) {
-  ds |>
-    mutate(
-      type = case_when(
-        .data$is_int | .data$is_dbl ~ "numeric",
-        .data$is_enum ~ "select",
-        TRUE ~ "text"
-      ),
-      row = purrr::pmap(
-        list(
-          id = .data$coreid,
-          label = .data$corename,
-          type = .data$type,
-          value = .data$value,
-          choices = .data$enum_values,
-          units = .data$base_units
-        ),
-        generate_value_input_row,
-        ns = ns
-      )
-    ) |>
-    pull(.data$row) |>
-    tagList()
-}
-
-# generate the actual input line
-generate_value_input_row <- function(
-  id,
-  label,
-  type,
-  value,
-  choices,
-  units,
-  ns = NULL
-) {
-  widget <- switch(
-    type,
-    select = selectInput(
-      ns(id),
-      label = NULL,
-      choices = choices,
-      selected = value[[1]]
-    ),
-    numeric = numericInput(ns(id), label = NULL, value = value[[1]]),
-    text = textInput(ns(id), label = NULL, value = value[[1]]),
-    cli_abort("Unsupported type: ", type)
-  )
-  fluidRow(
-    column(width = 4, tags$div(style = "margin-top: 5px;", label)),
-    column(width = 4, widget),
-    if (!is.na(units) && nzchar(units)) {
-      column(width = 4, tags$div(style = "margin-top: 5px;", units))
-    }
-  )
 }
