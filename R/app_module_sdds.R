@@ -69,7 +69,8 @@ sdds_ui <- function(id) {
           ) |>
             add_tooltip(
               "Send commands to make the changes."
-            ),
+            ) |>
+            shinyjs::disabled(),
           actionButton(
             ns("command_logs"),
             "Logs",
@@ -120,7 +121,8 @@ sdds_server <- function(id, token, timezone, core_ids = NULL) {
     values <- reactiveValues(
       show_system = FALSE,
       show_hardware = FALSE,
-      edit_structure = tibble()
+      edit_structure = tibble(),
+      command_queue = tibble()
     )
 
     # devices =============
@@ -308,6 +310,12 @@ sdds_server <- function(id, token, timezone, core_ids = NULL) {
 
     # edit values ===========
 
+    # editing modules
+    edit_modules <- list(
+      "integer" = value_integer_input("integer"),
+      "enum" = value_enum_input("enum")
+    )
+
     # trigger modal dialog
     observeEvent(structures$get_selected_ids(), {
       req(structures$get_selected_ids())
@@ -318,9 +326,44 @@ sdds_server <- function(id, token, timezone, core_ids = NULL) {
         log_info(user_msg = paste(path, "is read-only"))
       } else {
         values$edit_structure <- structure
+
+        # generate edit ui fields
+        edit_ui <-
+          structure |>
+          mutate(
+            ui = purrr::pmap(
+              list(
+                type = .data$type,
+                coreid = .data$coreid,
+                label = .data$corename,
+                value = .data$value,
+                units = .data$base_units,
+                choices = .data$enum_values
+              ),
+              function(type, coreid, label, value, units, choices) {
+                if (!type %in% names(edit_modules)) {
+                  return(generate_standard_input_row(
+                    label,
+                    sprintf("unsupported value type '%s'", type)
+                  ))
+                }
+                return(edit_modules[[type]]$generate_ui(
+                  coreid = coreid,
+                  label = label,
+                  value = value,
+                  units = units,
+                  choices = choices
+                ))
+              }
+            )
+          ) |>
+          pull(.data$ui) |>
+          tagList()
+
+        # generate modal diaolog
         modalDialog(
           title = h3(path),
-          structure |> generate_value_input_rows(ns),
+          edit_ui,
           footer = tagList(
             actionButton(
               ns("save_edit"),
@@ -340,44 +383,177 @@ sdds_server <- function(id, token, timezone, core_ids = NULL) {
       }
     })
 
-    # # FIXME: use this for validation - not needed for queuing values
-    # # --> that only happens when queueValue is pressed
-    # # observe value changes
-    # active_observers <- list()
-    # observe({
-    #   req(nrow(values$edit_structure) > 0)
-    #   for (coreid in values$edit_structure$coreid) {
-    #     local({
-    #       local_id <- coreid
-    #       # only create observer if it doesn't already exist
-    #       if (!local_id %in% names(active_observers)) {
-    #         active_observers[[local_id]] <<- observeEvent(
-    #           input[[local_id]],
-    #           {
-    #             log_debug(local_id, " changed to: ", input[[local_id]])
-    #           }
-    #         )
-    #       }
-    #     })
-    #   }
-
-    #   # destroy observers for removed devices
-    #   removed_ids <- names(active_observers) |>
-    #     setdiff(values$edit_structure$coreid)
-    #   for (id in removed_ids) {
-    #     active_observers[[id]]$destroy()
-    #     active_observers[[id]] <<- NULL
-    #   }
-    # })
-
     # save edits
     observeEvent(input$save_edit, {
       req(nrow(values$edit_structure) > 0)
-      values <- tibble(
-        coreid = values$edit_structure$coreid,
-        new_raw = .data$coreid |> purrr::map(~ input[[.x]])
-      )
-      print(values)
+
+      # any new values?
+      new_values <-
+        values$edit_structure |>
+        mutate(
+          new_value = purrr::pmap(
+            list(type = .data$type, coreid = .data$coreid),
+            function(type, coreid) {
+              if (!type %in% names(edit_modules)) {
+                return(NULL)
+              }
+              return(edit_modules[[type]]$get_value(coreid))
+            }
+          ),
+          new_text = purrr::pmap_chr(
+            list(
+              type = .data$type,
+              coreid = .data$coreid,
+              units = .data$base_units
+            ),
+            function(type, coreid, units) {
+              if (!type %in% names(edit_modules)) {
+                return(NA_character_)
+              }
+              return(edit_modules[[type]]$get_text(coreid, units))
+            }
+          ),
+          has_changed = purrr::map2_lgl(
+            value,
+            new_value,
+            ~ !is.null(.y) & !identical(.x, .y)
+          )
+        ) |>
+        filter(.data$has_changed)
+
+      if (nrow(new_values) > 0) {
+        values$command_queue <- bind_rows(
+          isolate(values$command_queue),
+          new_values |> prepare_command_queue_entries()
+        ) |>
+          mutate(row_id = row_number())
+      }
+
+      # close model dialog
+      removeModal()
+    })
+
+    # send commands queue =========
+
+    ## get data
+    get_command_queue_for_table <- reactive({
+      req(nrow(values$command_queue) > 0)
+      values$command_queue |>
+        mutate(
+          status = if_else(is.na(.data$status), "not sent yet", .data$status)
+        ) |>
+        select(
+          "row_id",
+          "coreid",
+          "Device" = "corename",
+          "Attribute" = "path",
+          "Previous value" = "text",
+          "New value" = "new_text",
+          "Command" = "command",
+          "Status" = "status"
+        )
+    })
+
+    ## disable/enable send button in structures
+    observeEvent(
+      values$command_queue,
+      {
+        shinyjs::toggleState(
+          "send_commands",
+          condition = !is_empty(values$command_queue)
+        )
+      },
+      ignoreNULL = FALSE
+    )
+
+    ## trigger modal dialog
+    observeEvent(input$send_commands, {
+      req(nrow(values$command_queue) > 0)
+      showModal(queue_modal)
+    })
+
+    ## triger selection after loading
+    observeEvent(queue$table_complete(), {
+      req(nrow(values$command_queue) > 0)
+      ids <- values$command_queue |> filter(is.na(.data$status)) |> pull(row_id)
+      if (!is_empty(ids)) {
+        queue$select_rows(ids = ids)
+      }
+    })
+
+    ## command queue modal
+    queue_modal <- modalDialog(
+      title = h3("Commands ready to send to devices"),
+      module_selector_table_ui(ns("queue")),
+      footer = tagList(
+        actionButton(
+          # FIXME: send commands selected in the table (by default the unset ones are send)
+          # FIXME: additional button delete selected commands
+          # FIXME: clear all
+          ns("send_now"),
+          "Send commands",
+          icon = icon("paper-plane"),
+          style = "border: 0;"
+        ) |>
+          add_tooltip(
+            "Send the new commands to the devices now. Previously sent commands are not resent."
+          ) |>
+          shinyjs::disabled(),
+        actionButton(
+          ns("clear_queue"),
+          "Clear all",
+          icon = icon("xmark"),
+          style = "border: 0;"
+        ) |>
+          add_tooltip(
+            "Clear the commands table and close the dialog."
+          ),
+        modalButton("Close")
+      ),
+      easyClose = TRUE,
+      size = "l"
+    )
+    observeEvent(
+      queue$get_selected_ids(),
+      {
+        shinyjs::toggleState(
+          "send_now",
+          condition = !is_empty(queue$get_selected_ids())
+        )
+      },
+      ignoreNULL = FALSE
+    )
+    observeEvent(input$clear_queue, {
+      values$command_queue <- tibble()
+      removeModal()
+    })
+
+    ## commands queue table
+    queue <- callModule(
+      module_selector_table_server,
+      "queue",
+      get_data = get_command_queue_for_table,
+      id_column = "row_id",
+      # make row_id and coreid columns invisible
+      columnDefs = list(list(visible = FALSE, targets = 0:1)),
+      # view all & scrolling
+      allow_view_all = TRUE,
+      initial_page_length = -1,
+      dom = "ft",
+      scrollX = TRUE,
+      scrollY = "400px",
+      selection = "multiple",
+      auto_reselect = FALSE
+    )
+
+    ## send the commands
+    observeEvent(input$send_now, {
+      req(nrow(values$command_queue) > 0)
+      req(any(!is.na(values$command_queue$status)))
+
+      # FIXME: continue here!
+
+      #particle_send_sdds_commands("0a10aced202194944a058c18", cmds = c("sensor.action=beamOff"))
     })
 
     # events stream ============
