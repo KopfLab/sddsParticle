@@ -508,7 +508,7 @@ sdds_simplify_trees_and_values <- function(
     return(tibble())
   }
 
-  # types
+  # standard data types
   types <- list(
     "null" = expr(.data$v_missing | !.data$v_valid),
     "enum" = expr(.data$is_enum),
@@ -525,17 +525,15 @@ sdds_simplify_trees_and_values <- function(
     types[!names(types) %in% names(additional_types)]
   )
 
-  # text converters
+  # standard text converters
   converters <- list(
     "null" = function(...) NA_character_,
-    "enum" = function(value, ...) as.character(value),
+    "enum" = enum_value_to_text,
     "var_interval" = var_intervals_value_to_text,
     "duration" = duration_value_to_text,
-    "integer" = function(value, units) as.character(value) |> add_units(units),
-    "double" = function(value, units) {
-      as.character(signif(value, 4)) |> add_units(units)
-    },
-    "text" = function(value, units) as.character(value) |> add_units(units)
+    "integer" = integer_value_to_text,
+    "double" = double_value_to_text,
+    "text" = text_value_to_text
   )
   converters <- c(
     additional_converters,

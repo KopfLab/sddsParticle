@@ -167,6 +167,25 @@ particle_send_sdds_commands <- function(
             "must provide a particle coreid"
         )
     cmds |> check_arg(is_character(cmds))
-    sprintf("devices/%s/sdds", coreid) |>
+    out <- sprintf("devices/%s/sdds", coreid) |>
         send_request(token = token, arg = paste(cmds, collapse = " "))
+    out$success <- check_commands_success(out$return_value, length(cmds))
+    return(out)
+}
+
+# return value
+check_commands_success <- function(retval, n_cmds) {
+    stopifnot(is_integerish(n_cmds))
+    if (n_cmds == 0) {
+        return(logical())
+    }
+    if (n_cmds == 1) {
+        return(retval == 0)
+    }
+    purrr::map_lgl(
+        0:(n_cmds - 1L),
+        ~ {
+            bitwAnd(retval, bitwShiftL(1L, .x)) == 0
+        }
+    )
 }
