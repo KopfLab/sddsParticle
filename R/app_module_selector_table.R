@@ -58,7 +58,9 @@ module_selector_table_server <- function(
     all_ids = c(),
     selected_ids = c(),
     selected_cells = c(), # only matters if in 'cell' selection mode
-    update_selected = -1L, # trigger selection update (circumventing circular triggers with user selection)
+    update_selected = if (auto_reselect) -1L else 0L, # trigger selection update (circumventing circular triggers with user selection)
+    rendering = TRUE,
+    table_complete = 0,
     visible_cols = visible_columns,
     page_length = initial_page_length, # selected page length
     display_start = 0, # which display page to start on
@@ -73,11 +75,7 @@ module_selector_table_server <- function(
   get_table_df <- reactive({
     req(get_data())
     validate(need(has_data(), "No data available"))
-    log_info(
-      ns = ns,
-      "preparing table df with new data",
-      user_msg = "Loading table"
-    )
+    log_debug(ns = ns, "loading table data frame")
     # get the table
     df <-
       tryCatch(
@@ -153,7 +151,8 @@ module_selector_table_server <- function(
       # triggers
       get_table_df_visible_cols()
       values$filter
-      log_debug(ns = ns, "rendering selection table")
+      # info
+      log_info(ns = ns, "rendering selection table", user_msg = "Loading table")
       # get the table
       table <-
         tryCatch(
@@ -293,10 +292,16 @@ module_selector_table_server <- function(
 
       # wrap up
       validate(need(table, "Data table couldn't be created"))
-      if (auto_reselect) {
-        isolate(update_selected())
-      } # make sure selection stays the same
-      log_success(ns = ns, "selector table complete", user_msg = "Complete")
+      isolate({
+        # make sure selection stays the same
+        if (auto_reselect) {
+          update_selected()
+        }
+        # keep track of rendering
+        if (!values$rendering) {
+          values$rendering <- TRUE
+        }
+      })
       return(table)
     },
     # make sure this is executed server side
@@ -357,9 +362,14 @@ module_selector_table_server <- function(
   observeEvent(
     input$selection_table_rows_selected,
     {
+      # this triggers when the table first loads too and then for each user selection
       req(has_data())
       req(values$all_ids)
-      select_rows(indices = input$selection_table_rows_selected)
+      # avoid circular trigger iwth update_selected = FALSE
+      select_rows(
+        indices = input$selection_table_rows_selected,
+        update_selected = FALSE
+      )
     },
     ignoreNULL = FALSE
   )
@@ -377,7 +387,11 @@ module_selector_table_server <- function(
     return(get_id_from_index(get_index_from_id(omit_duplicates(ids))))
   }
 
-  select_rows <- function(ids = get_id_from_index(indices), indices = NULL) {
+  select_rows <- function(
+    ids = get_id_from_index(indices),
+    indices = NULL,
+    update_selected = TRUE
+  ) {
     ids <- clean_ids(ids)
     if (!identical(ids, values$selected_ids)) {
       # there were actual changes
@@ -385,14 +399,15 @@ module_selector_table_server <- function(
       if (length(ids) > 0L) {
         log_debug(
           ns = ns,
-          "saving selections: ",
+          "saving row selections: ",
           sprintf("#%d = '%s'", get_index_from_id(ids), ids) |>
             paste0(collapse = ", ")
         )
       } else {
-        log_debug(ns = ns, "saving selections: nothing")
+        log_debug(ns = ns, "saving row selections: nothing")
       }
     }
+    if (update_selected) update_selected()
   }
 
   # save cell selection ========
@@ -440,7 +455,7 @@ module_selector_table_server <- function(
       if (length(ids) > 0L) {
         log_debug(
           ns = ns,
-          "saving selections: ",
+          "saving cell selections: ",
           sprintf(
             "#%d = '%s' ('%s')",
             get_index_from_id(ids),
@@ -450,7 +465,7 @@ module_selector_table_server <- function(
             paste0(collapse = ", ")
         )
       } else {
-        log_debug(ns = ns, "saving selections: nothing")
+        log_debug(ns = ns, "saving cell selections: nothing")
       }
     }
   }
@@ -459,13 +474,17 @@ module_selector_table_server <- function(
   update_selected <- function() {
     values$update_selected <- values$update_selected + 1L
   }
-  observeEvent(values$update_selected, {
-    if (values$update_selected > 0) {
-      log_debug(ns = ns, "updating selections in selection table")
-      proxy <- DT::dataTableProxy("selection_table")
-      DT::selectRows(proxy, get_index_from_id(values$selected_ids))
-    }
-  })
+  observeEvent(
+    values$update_selected,
+    {
+      if (values$update_selected > 0) {
+        log_debug(ns = ns, "updating selections in selection table")
+        proxy <- DT::dataTableProxy("selection_table")
+        DT::selectRows(proxy, get_index_from_id(values$selected_ids))
+      }
+    },
+    priority = 1000
+  )
 
   # select all event ======
   observeEvent(input$select_all, {
@@ -475,13 +494,11 @@ module_selector_table_server <- function(
         get_id_from_index(input$selection_table_rows_all)
       )
     )
-    update_selected()
   })
 
   # deselect all event ======
   observeEvent(input$deselect_all, {
     select_rows(c())
-    update_selected()
   })
 
   # set/pick columns event =====
@@ -549,6 +566,11 @@ module_selector_table_server <- function(
   # save state
   observeEvent(input$selection_table_state, {
     log_debug(ns = ns, "saving state of selection table")
+    if (values$rendering) {
+      log_success(ns = ns, "selector table rendered", user_msg = "Complete")
+      values$table_complete <- values$table_complete + 1L
+      values$rendering <- FALSE
+    }
     values$page_length <- input$selection_table_state$length
     values$display_start <- input$selection_table_state$start
     values$search <- input$selection_table_state$search$search
@@ -604,7 +626,10 @@ module_selector_table_server <- function(
     set_visible_columns = set_visible_columns,
     reset_visible_columns = reset_visible_columns,
     change_formatting_calls = change_formatting_calls,
-    update_options = update_options
+    update_options = update_options,
+    table_complete = reactive({
+      values$table_complete
+    })
   )
 }
 
