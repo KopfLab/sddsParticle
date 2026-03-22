@@ -323,7 +323,7 @@ sdds_server <- function(id, token, timezone, core_ids = NULL) {
       structure <- get_structures() |> filter(.data$path == !!path)
       if (all(structure$readonly)) {
         values$edit_structure <- tibble()
-        log_info(user_msg = paste(path, "is read-only"))
+        log_info(ns = ns, user_msg = paste(path, "is read-only"))
       } else {
         values$edit_structure <- structure
 
@@ -487,16 +487,13 @@ sdds_server <- function(id, token, timezone, core_ids = NULL) {
       module_selector_table_ui(ns("queue")),
       footer = tagList(
         actionButton(
-          # FIXME: send commands selected in the table (by default the unset ones are send)
-          # FIXME: additional button delete selected commands
-          # FIXME: clear all
           ns("send_now"),
-          "Send commands",
+          "Send selected",
           icon = icon("paper-plane"),
           style = "border: 0;"
         ) |>
           add_tooltip(
-            "Send the new commands to the devices now. Previously sent commands are not resent."
+            "Send the selected commands to the devices."
           ) |>
           shinyjs::disabled(),
         actionButton(
@@ -519,6 +516,10 @@ sdds_server <- function(id, token, timezone, core_ids = NULL) {
         shinyjs::toggleState(
           "send_now",
           condition = !is_empty(queue$get_selected_ids())
+        )
+        updateActionButton(
+          inputId = "send_now",
+          label = sprintf("Send %d selected", length(queue$get_selected_ids()))
         )
       },
       ignoreNULL = FALSE
@@ -543,13 +544,63 @@ sdds_server <- function(id, token, timezone, core_ids = NULL) {
       scrollX = TRUE,
       scrollY = "400px",
       selection = "multiple",
-      auto_reselect = FALSE
+      auto_reselect = FALSE,
+      ordering = FALSE
     )
+
+    ## function to send the commands
+    send_commands <- function(coreid, corename, cmds) {
+      log_info(
+        ns = ns,
+        user_msg = sprintf(
+          "Sending %d commands to %s",
+          length(cmds),
+          corename[1]
+        )
+      )
+      out <- coreid[1] |>
+        particle_send_sdds_commands(cmds = cmds) |>
+        try_catch_cnds()
+      if (nrow(out$conditions) > 0) {
+        # TODO: how to better provide the cnds to the error function?
+        show_cnds(out_conditions)
+        log_error(
+          ns = ns,
+          user_msg = paste0("could not send commands to ", corename[1])
+        )
+        return(rep(FALSE, length(cmds)))
+      }
+      return(out$result$success)
+    }
 
     ## send the commands
     observeEvent(input$send_now, {
       req(nrow(values$command_queue) > 0)
-      req(any(!is.na(values$command_queue$status)))
+      req(queue$get_selected_ids())
+
+      cmds_to_send <- values$command_queue |>
+        filter(.data$row_id %in% queue$get_selected_ids())
+      print(cmds_to_send)
+
+      cmds_results <- cmds_to_send |>
+        mutate(
+          .by = "coreid",
+          success = send_commands(coreid[1], corename[1], command)
+        )
+      print(cmds_results)
+
+      values$command_queue <- values$command_queue |>
+        left_join(cmds_results |> select("row_id", "success"), by = "row_id") |>
+        mutate(
+          status = case_when(
+            is.na(.data$success) ~ .data$status,
+            .data$success ~ "success",
+            !.data$success ~ "failed"
+          )
+        ) |>
+        select(-"success") |>
+        arrange(.data$row_id)
+      print(values$command_queue)
 
       # FIXME: continue here!
 
@@ -665,7 +716,7 @@ sdds_server <- function(id, token, timezone, core_ids = NULL) {
         "navigator.clipboard.writeText('%s');",
         events$get_selected_items()$data
       ))
-      log_info(user_msg = "Data copied to clipboard.")
+      log_info(ns = ns, user_msg = "Data copied to clipboard.")
     })
 
     ## events stream table
