@@ -1,8 +1,8 @@
 # user interface
-app_ui <- function(timezone = NULL) {
+app_ui <- function(default_timezone = NULL) {
   # constants
   app_title <- "SDDS GUI"
-  app_title_width <- 160
+  app_title_width <- 200
   app_color <- "green"
   spinner_color <- "#2c3b41"
   app_box_default <- "#2c3b41"
@@ -57,7 +57,13 @@ app_ui <- function(timezone = NULL) {
           as.character(packageVersion("sddsParticle")),
           align = "center"
         ),
-        if (!is.null(timezone)) h5(timezone, align = "center"),
+        h4("Timezone", align = "center", style = "margin: 0px;"),
+        selectInput(
+          "timezone",
+          label = NULL,
+          choices = OlsonNames(),
+          selected = default_timezone
+        ),
         tags$li(a(uiOutput("help", inline = TRUE))),
         if (shiny::in_devmode()) {
           actionButton("dev_mode_toggle", "Toggle Dev Mode")

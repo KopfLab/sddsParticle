@@ -1,5 +1,5 @@
 # server
-app_server <- function(token, timezone) {
+app_server <- function(token) {
   # return server function (input, output, and session parameters required by shiny)
   function(input, output, session) {
     log_info("\n\n========================================================")
@@ -12,7 +12,7 @@ app_server <- function(token, timezone) {
     # TODO: make it possible to pass additional modules for the value editing:
     # example in get_structures() in app_module_sdds for Ohm should be coming from here
     # (both converter function and rendeirng module)
-    sdds <- sdds_server("sdds", token, reactive(timezone))
+    sdds <- sdds_server("sdds", token, reactive(input$timezone))
 
     # dev mode
     observeEvent(input$dev_mode_toggle, {
