@@ -12,8 +12,7 @@ app_server <- function(token, timezone) {
     # TODO: make it possible to pass additional modules for the value editing:
     # example in get_structures() in app_module_sdds for Ohm should be coming from here
     # (both converter function and rendeirng module)
-    # TODO: make timezone a reactive function
-    sdds <- sdds_server("sdds", token, timezone)
+    sdds <- sdds_server("sdds", token, reactive(timezone))
 
     # dev mode
     observeEvent(input$dev_mode_toggle, {

@@ -113,7 +113,7 @@ sdds_ui <- function(id) {
 
 #' @describeIn sdds_module generates the server for the sdds module
 #' @export
-sdds_server <- function(id, token, timezone, core_ids = NULL) {
+sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -169,7 +169,7 @@ sdds_server <- function(id, token, timezone, core_ids = NULL) {
       devices |>
         mutate(
           last_heard = lubridate::ymd_hms(.data$last_heard, tz = "UTC") |>
-            lubridate::with_tz(timezone) |>
+            lubridate::with_tz(get_timezone()) |>
             format("%b %d %Y %H:%M:%S")
         )
     })
@@ -251,7 +251,7 @@ sdds_server <- function(id, token, timezone, core_ids = NULL) {
         sdds_parse_trees_and_values() |>
         sdds_simplify_trees_and_values(
           devices = get_devices(),
-          timezone = timezone,
+          timezone = get_timezone(),
           additional_types = list(
             "resistance" = expr(.data$base_units == "Ohm")
           ),
@@ -749,7 +749,7 @@ sdds_server <- function(id, token, timezone, core_ids = NULL) {
           filter(.data$coreid %in% devices$get_selected_ids()) |>
           get_command_logs_for_devices(token = token)
         logs |>
-          prepare_command_logs_for_table(timezone = timezone)
+          prepare_command_logs_for_table(timezone = get_timezone())
       })
     })
 
