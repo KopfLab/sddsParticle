@@ -5,6 +5,7 @@
 #' @param id_column name of the ID column - must have unique values!! make a rownumber or concatenated column if there is no unique identifier, this column does NOT have to be part of available_columns (but can be)
 #' @param available_columns list of transmute statements to select columns to show
 #' @param visible_columns integer vector of columns (from what the available_columns selects) that are visible when the table loads (can be changed with the table_columns_button action) - if empty, all columns are visible
+#' @param container the container defining the table html layout (passed on to DT::datatable)
 #' @param allow_view_all whether to allow the "all" option in the page lengths, default is FALSE
 #' @param page_lengths page length options, first one will be selected
 #' @param initial_page_length initially selected page length, first entry of the page_lengths by default
@@ -12,6 +13,7 @@
 #' @param filter whether to include column filters - note that this does NOT work for restoring after reload so use with caution if that's a desired feature
 #' @param ordering whether to allow column sorting, default TRUE
 #' @param class styling of table see class parameter for datatable
+#' @param escape_headers whether to HTML escape headers (turn off to have HTML rendered in the header columns)
 #' @param selection see parameter for data table (none, single, multiple)
 #' @param auto_reselect whether to reselect selected rows automatically after reloads
 #' @param render_html list of columns which should NOT be html escaped (e.g. for links), use dplyr::everything() to render everything
@@ -25,6 +27,7 @@ module_selector_table_server <- function(
   id_column,
   available_columns = list(dplyr::across(dplyr::everything(), identity)),
   visible_columns = c(),
+  container = NULL,
   allow_view_all = FALSE,
   page_lengths = list(
     c(5, 10, 20, 50, 100, if (allow_view_all) -1),
@@ -34,7 +37,8 @@ module_selector_table_server <- function(
   dom = "fltip",
   filter = c("none", "bottom", "top"),
   ordering = TRUE,
-  class = "cell-border stripe hover order-column",
+  class = "cell-border hover order-column",
+  escape_headers = TRUE,
   selection = c("multiple", "single", "none"),
   auto_reselect = TRUE,
   enable_dblclick = FALSE,
@@ -158,14 +162,27 @@ module_selector_table_server <- function(
         tryCatch(
           isolate({
             values$table_data <- get_table_df_visible_cols()
+            # header columns
+            print(names(values$table_data))
+            if (is.null(container)) {
+              container <- tags$table(
+                DT::tableHeader(
+                  names(values$table_data),
+                  escape = escape_headers
+                ),
+                class = class
+              )
+            }
             # generate data table
             table <- DT::datatable(
               data = values$table_data,
               rownames = FALSE,
               filter = values$filter,
               class = class,
+              container = container,
               selection = selection,
-              #fillContainer = TRUE, # note this is useless inside DT:renderDataTable (but also not necessary, use scrollY = "calc(100vh - 200px)" instead)
+              #fillContainer = TRUE, # note this is useless inside DT:renderDataTable
+              # (but also not necessary, use scrollY = "max(400px, calc(100vh - 200px))" instead)
               escape = if (
                 rlang::is_call(render_html_expr) &&
                   rlang::call_name(render_html_expr) == "everything"
