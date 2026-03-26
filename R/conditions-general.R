@@ -73,15 +73,15 @@ try_catch_cnds <- function(
         sapply(function(x) as.character(x)[1] == "..stacktraceon..")
       # found any? --> remove everything before
       if (any(is_shiny_stacktrace_start)) {
-        last_call <- 1L + max(which(is_shiny_stacktrace_start))
+        last_call <- max(which(is_shiny_stacktrace_start))
         cnd$trace <-
           cnd$trace |>
           # correct parent references
           dplyr::mutate(
-            parent = ifelse(
-              .data$parent >= last_call,
-              .data$parent - last_call,
-              .data$parent
+            parent = case_when(
+              dplyr::row_number() == last_call + 1L ~ 0L, # new root
+              .data$parent > last_call ~ .data$parent - last_call,
+              TRUE ~ .data$parent
             )
           ) |>
           # omit the helper callstack
@@ -410,6 +410,11 @@ show_cnds <- function(
   # call info
   .call = caller_call()
 ) {
+  # allow cnds to be a try_catch_cnds return object
+  if (!is.data.frame(conditions) && is.data.frame(conditions$conditions)) {
+    conditions <- conditions$conditions
+  }
+
   # output as cli_bullets
   if (nrow(conditions) > 0) {
     output <-
