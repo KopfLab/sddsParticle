@@ -6,6 +6,7 @@
 # @param catch_errors whether to catch errors (vs. throwing them)
 # @param catch_warnigns whether to catch warnings (vs. throwing them)
 # @param truncate_call_stack whether to omit the try_catch_cnds calls from the resulting call stack in errors
+# @param truncate_shiny_call_stack whether to omit everything but the last shiny::..stacktraceon.. from the call stack?
 # @param call caller env - only relevant if re-throwing the error (catch_errors = FALSE)
 # @return list with result and conditions, use show_cnds(out$conditions) to show conditions if any were caught
 try_catch_cnds <- function(
@@ -14,6 +15,7 @@ try_catch_cnds <- function(
   catch_errors = TRUE,
   catch_warnings = TRUE,
   truncate_call_stack = TRUE,
+  truncate_shiny_call_stack = TRUE,
   call = caller_call()
 ) {
   conds <- tibble::tibble(type = character(0), condition = list())
@@ -62,6 +64,28 @@ try_catch_cnds <- function(
             total_shift <- total_shift + shift
           }
         }
+      }
+    }
+
+    # truncate shiny call stack to focus only on last part of stacktrace?
+    if (truncate_shiny_call_stack && is(cnd$trace, "rlang_trace")) {
+      is_shiny_stacktrace_start <- cnd$trace$call |>
+        sapply(function(x) as.character(x)[1] == "..stacktraceon..")
+      # found any? --> remove everything before
+      if (any(is_shiny_stacktrace_start)) {
+        last_call <- 1L + max(which(is_shiny_stacktrace_start))
+        cnd$trace <-
+          cnd$trace |>
+          # correct parent references
+          dplyr::mutate(
+            parent = ifelse(
+              .data$parent >= last_call,
+              .data$parent - last_call,
+              .data$parent
+            )
+          ) |>
+          # omit the helper callstack
+          dplyr::filter(dplyr::row_number() > last_call)
       }
     }
 

@@ -27,6 +27,7 @@ app_ui <- function(default_timezone = NULL) {
         shinyjs::useShinyjs(), # enable shinyjs
         shinytoastr::useToastr(), # enable toaster
         prompter::use_prompt(), # enable prompter
+        use_app_utils(),
         tags$head(
           # css headers
           tags$style(

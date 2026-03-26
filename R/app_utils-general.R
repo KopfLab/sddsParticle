@@ -1,15 +1,89 @@
 # logging utilities ====
 # note: fatal and trace are usually overkill
 
+# call to use app util error formatting
+use_app_utils <- function() {
+  tagList(
+    tags$style(HTML(".shiny-output-error-validation { color: #b30000; }")),
+    tags$style(HTML(paste(format(cli::ansi_html_style()), collapse = "\n"))),
+    tags$style(HTML(
+      "
+      .cli-inline-error {
+        display: inline;
+        white-space: pre-wrap;
+      }
+    "
+    ))
+  )
+}
+
 # call the other log functions instead for clarity in the code
 # @param ... toaster parameters
 log_any <- function(msg, log_fun, toaster_fun, ns = NULL, toaster = NULL, ...) {
   ns <- if (!is.null(ns)) paste0("[", ns(NULL), "] ") else ""
   if (!is.null(toaster)) {
     log_fun(paste0(ns, msg, " [GUI msg: '", toaster, "']", collapse = ""))
-    toaster_fun(toaster, position = "bottom-right", newestOnTop = TRUE, ...)
+    toaster_fun(
+      cli::ansi_html(toaster),
+      position = "bottom-right",
+      newestOnTop = TRUE,
+      ...
+    )
   } else {
     log_fun(paste0(ns, msg, collapse = ""))
+  }
+}
+
+# calls log_warning and log_error for any encoutnered conditions
+log_cnds <- function(
+  cnds = tibble(),
+  ns = NULL,
+  user_msg = NULL,
+  .call = caller_call()
+) {
+  # allow cnds to be a try_catch_cnds return object
+  if (!is.data.frame(cnds) && is.data.frame(cnds$conditions)) {
+    cnds <- cnds$conditions
+  }
+  if (nrow(cnds) == 0) {
+    return()
+  }
+
+  # get call info
+  call <- as.character(.call[1])
+  if (is_empty(call)) {
+    call <- "unknown"
+  }
+
+  warnings <- cnds |> filter(type == "warning")
+  if (nrow(warnings) > 0) {
+    # toaster warnings
+    log_warning(
+      ns = ns,
+      user_msg = if (!is.null(user_msg)) {
+        user_msg
+      } else {
+        format_inline(
+          "Encountered {nrow(warnings)} warning{?s} in {call}"
+        )
+      },
+      warning = warnings |>
+        pull(message) |>
+        paste(collapse = "<br/>")
+    )
+  }
+  errors <- cnds |> filter(type == "error")
+  if (nrow(errors) > 0) {
+    # full errors
+    log_error(
+      ns = ns,
+      user_msg = if (!is.null(user_msg)) {
+        user_msg
+      } else {
+        format_inline("{qty(nrow(errors))}Error{?s} in {call}()")
+      },
+      error = errors$condition |> purrr::map_chr(format)
+    )
   }
 }
 
@@ -22,7 +96,7 @@ log_error <- function(..., ns = NULL, user_msg = NULL, error = NULL) {
     }
 
   issue_title <- sprintf(
-    "Error in %s: %s",
+    "Version %s: %s",
     if (getPackageName() != ".GlobalEnv") {
       packageVersion(getPackageName())
     } else {
@@ -30,10 +104,16 @@ log_error <- function(..., ns = NULL, user_msg = NULL, error = NULL) {
     },
     user_msg
   )
+
+  issue_body <- sprintf(
+    "Please describe here what you were attempting to do in the app when this issue occured.\n\n## Trace (do NOT delete)\n\n<pre>%s</pre>",
+    error_msg
+  )
+
   issue_url <- sprintf(
-    "https://github.com/KopfLab/geoapps/issues/new?title=%s&body=%s",
-    URLencode(issue_title),
-    URLencode(HTML(error_msg))
+    "https://github.com/KopfLab/sddsParticle/issues/new?title=%s&body=%s",
+    URLencode(issue_title, reserved = TRUE),
+    URLencode(HTML(issue_body), reserved = TRUE)
   )
 
   error_screen <- modalDialog(
@@ -45,20 +125,20 @@ log_error <- function(..., ns = NULL, user_msg = NULL, error = NULL) {
         tags$a("report this error", href = issue_url, target = "_blank"),
       )
     ),
-    if (nchar(error_msg) > 0) p(style = "color: red;", HTML(error_msg))
+    if (nchar(error_msg) > 0) pre(HTML(error_msg))
   )
 
   log_any(
     msg = paste0(
       ...,
-      if (!is.null(error)) paste0(": ", error$message),
+      if (!is.null(error)) paste0("Encountered error:\n", error, "\n"),
       collapse = ""
     ),
     ns = ns,
     log_fun = rlog::log_error,
     toaster_fun = shinytoastr::toastr_error,
     toaster = user_msg,
-    title = "Error",
+    title = "Encountered error",
     timeOut = 10000,
     closeButton = TRUE
   )
