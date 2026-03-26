@@ -140,53 +140,30 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
       )
     }
 
-    ## get devices tibble
+    ## get devices
     get_devices <- reactive({
       input$refresh_devices
-      if (in_devmode() && file.exists("cache/sdds_devices.csv")) {
-        # take from file in dev mode
-        devices <- readr::read_csv(
-          "cache/sdds_devices.csv",
-          show_col_types = FALSE
-        )
-      } else {
-        # always request from cloud
-        devices <- particle_get_device_info(token = token) |>
-          simplify_device_info()
-        if (in_devmode()) {
-          # store in file in devmode
-          if (!dir.exists("cache")) {
-            dir.create("cache")
-          }
-          devices |> readr::write_csv("cache/sdds_devices.csv")
-        }
-      }
-      # if only specific coreids are allowed --> filter for them
-      if (!is.null(core_ids)) {
-        devices <- devices |> filter(.data$id %in% core_ids)
-      }
-      # subselect info
-      devices |>
-        mutate(
-          last_heard = lubridate::ymd_hms(.data$last_heard, tz = "UTC") |>
-            lubridate::with_tz(get_timezone()) |>
-            format("%b %d %Y %H:%M:%S")
-        )
+      log_info(ns = ns, user_msg = "Fetching devices")
+      # safely call function
+      out <- get_devices_in_app(
+        token = token,
+        core_ids = core_ids
+      ) |>
+        try_catch_cnds()
+      out |> log_cnds()
+      return(out$result)
     })
 
     ## get devices for table
     get_devices_for_table <- reactive({
-      req(get_devices())
-      get_devices() |>
-        select(
-          "coreid",
-          Name = "name",
-          `Last heard from` = "last_heard",
-          Connected = "connected",
-          Status = "status",
-          Firmware = "system_firmware_version",
-          `MAC address` = "mac_wifi"
-        )
+      # safety checks
+      validate(need(get_devices(), "No devices available."))
+      # safely call function
+      out <- get_devices() |>
+        get_devices_for_table_in_app(timezone = get_timezone()) |>
+        try_catch_cnds()
+      out |> log_cnds()
+      return(out$result)
     })
 
     ## setup devices selector table
@@ -208,6 +185,51 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
     )
 
     # structures =======
+
+    ## get structures
+    get_structures <- reactive({
+      req(get_devices())
+      req(devices$get_selected_ids())
+      log_info(ns = ns, user_msg = "Loading control structures")
+      # safely call function
+      out <- get_structures_in_app(
+        devices = get_devices(),
+        core_ids = devices$get_selected_ids(),
+        timezone = get_timezone(),
+        # TODO: these could be coming from the additional value modules/types/converters
+        additional_types = list(
+          "resistance" = expr(.data$base_units == "Ohm")
+        ),
+        additional_converters = list("resistance" = function(value, units) {
+          if (value > 1e6) {
+            paste0(value / 1e6, " MOhm")
+          } else if (value > 1e3) {
+            paste0(value / 1e3, " kOhm")
+          } else {
+            paste0(value / 1e3, " Ohm")
+          }
+        })
+      ) |>
+        try_catch_cnds()
+      out |> log_cnds()
+      return(out$result)
+    })
+
+    get_structures_for_table <- reactive({
+      # safety checks
+      validate(need(get_structures(), "No structures available."))
+
+      structures$reset_visible_columns()
+      # safely call function
+      out <- get_structures() |>
+        get_get_structures_for_table_in_app(
+          show_system = values$show_system,
+          show_hardware = values$show_hardware
+        ) |>
+        try_catch_cnds()
+      out |> log_cnds()
+      return(out$result)
+    })
 
     ## hide/show structures if there are selections
     observeEvent(
@@ -241,47 +263,6 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
       } else {
         "Hide HARDWARE"
       }
-    })
-
-    ## get structures
-    get_structures <- reactive({
-      req(devices$get_selected_ids())
-      sdds_read_cached_trees_and_values() |>
-        filter(.data$coreid %in% devices$get_selected_ids()) |>
-        sdds_parse_trees_and_values() |>
-        sdds_simplify_trees_and_values(
-          devices = get_devices(),
-          timezone = get_timezone(),
-          additional_types = list(
-            "resistance" = expr(.data$base_units == "Ohm")
-          ),
-          additional_converters = list("resistance" = function(value, units) {
-            if (value > 1e6) {
-              paste0(value / 1e6, " MOhm")
-            } else if (value > 1e3) {
-              paste0(value / 1e3, " kOhm")
-            } else {
-              paste0(value / 1e3, " Ohm")
-            }
-          })
-        )
-    })
-
-    get_structures_for_table <- reactive({
-      req(get_structures())
-      structures$reset_visible_columns()
-      structs <- get_structures()
-      if (!values$show_system) {
-        structs <- structs |>
-          filter(!stringr::str_detect(.data$path, "^SYSTEM"))
-      }
-      if (!values$show_hardware) {
-        structs <- structs |>
-          filter(!stringr::str_detect(.data$path, "^HARDWARE"))
-      }
-      structs |>
-        prepare_simplified_tree_w_values_for_table() |>
-        rename(" " = "label")
     })
 
     ## setup structures selector table
@@ -563,7 +544,7 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
         try_catch_cnds()
       if (nrow(out$conditions) > 0) {
         # TODO: how to better provide the cnds to the error function?
-        show_cnds(out_conditions)
+        show_cnds(out$conditions)
         log_error(
           ns = ns,
           user_msg = paste0("could not send commands to ", corename[1])
@@ -617,7 +598,7 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
 
       # return value indicating changes
       checkFunc = function() {
-        if (is_empty(devices$get_selected_ids())) {
+        if (is_empty(get_devices()) || is_empty(devices$get_selected_ids())) {
           return(NULL)
         }
         get_devices() |>
@@ -628,7 +609,9 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
 
       # get stream events
       valueFunc = function() {
-        #particle_stream_get_events() |>
+        if (is_empty(get_devices()) || is_empty(devices$get_selected_ids())) {
+          return(NULL)
+        }
         get_devices() |>
           filter(.data$coreid %in% devices$get_selected_ids()) |>
           get_stream_events_for_devices() |>

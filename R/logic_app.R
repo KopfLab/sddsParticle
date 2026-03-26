@@ -1,6 +1,95 @@
 # logic functions for the app ======
 
+## devices ===================
+
+# get devies in app
+get_devices_in_app <- function(token, core_ids) {
+  if (in_devmode() && file.exists("cache/sdds_devices.csv")) {
+    # take from file in dev mode
+    devices <- readr::read_csv(
+      "cache/sdds_devices.csv",
+      show_col_types = FALSE
+    )
+  } else {
+    # always request from cloud
+    devices <- particle_get_device_info(token = token) |>
+      simplify_device_info()
+    if (in_devmode()) {
+      # store in file in devmode
+      if (!dir.exists("cache")) {
+        dir.create("cache")
+      }
+      devices |> readr::write_csv("cache/sdds_devices.csv")
+    }
+  }
+  # if only specific coreids are allowed --> filter for them
+  if (!is.null(core_ids)) {
+    devices <- devices |> filter(.data$id %in% core_ids)
+  }
+  # subselect info
+  devices |>
+    mutate(last_heard = lubridate::ymd_hms(.data$last_heard, tz = "UTC"))
+}
+
+# get devices for table in app
+get_devices_for_table_in_app <- function(devices, timezone) {
+  devices |>
+    mutate(
+      last_heard = .data$last_heard |>
+        lubridate::with_tz(timezone) |>
+        format("%b %d %Y %H:%M:%S")
+    ) |>
+
+    select(
+      "coreid",
+      Name = "name",
+      `Last heard from` = "last_heard",
+      Connected = "connected",
+      Status = "status",
+      Firmware = "system_firmware_version",
+      `MAC address` = "mac_wifi"
+    )
+}
+
 ## structures ==================
+
+# get the structures inside the app
+get_structures_in_app <- function(
+  core_ids,
+  devices,
+  timezone,
+  additional_types,
+  additional_converters
+) {
+  sdds_read_cached_trees_and_values() |>
+    filter(.data$coreid %in% core_ids) |>
+    sdds_parse_trees_and_values() |>
+    sdds_simplify_trees_and_values(
+      devices = devices,
+      timezone = timezone,
+      additional_types = additional_types,
+      additional_converters = additional_converters
+    )
+}
+
+# get structures table in app
+get_get_structures_for_table_in_app <- function(
+  structs,
+  show_system,
+  show_hardware
+) {
+  if (!show_system) {
+    structs <- structs |>
+      filter(!stringr::str_detect(.data$path, "^SYSTEM"))
+  }
+  if (!show_hardware) {
+    structs <- structs |>
+      filter(!stringr::str_detect(.data$path, "^HARDWARE"))
+  }
+  structs |>
+    prepare_simplified_tree_w_values_for_table() |>
+    rename(" " = "label")
+}
 
 # convert the simplified tree with values for use in a selector table
 prepare_simplified_tree_w_values_for_table <- function(
@@ -9,9 +98,12 @@ prepare_simplified_tree_w_values_for_table <- function(
   simplified_tree_w_valus |>
     mutate(
       device_info = sprintf(
-        "%s (%s)",
+        "%s (%s ago)",
         corename,
-        .data$published_at |> format("%b %d %H:%M:%S")
+        fmt_duration(
+          lubridate::now(tzone = lubridate::tz(.data$published_at)) -
+            .data$published_at
+        )
       )
     ) |>
     select(
