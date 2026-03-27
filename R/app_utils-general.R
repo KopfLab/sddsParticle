@@ -13,7 +13,8 @@ use_app_utils <- function() {
         white-space: pre-wrap;
       }
     "
-    ))
+    )) |>
+      singleton()
   )
 }
 
