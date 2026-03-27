@@ -150,7 +150,7 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
         core_ids = core_ids
       ) |>
         try_catch_cnds()
-      out |> log_cnds()
+      out |> log_cnds(ns = ns)
       return(out$result)
     })
 
@@ -162,7 +162,7 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
       out <- get_devices() |>
         get_devices_for_table_in_app(timezone = get_timezone()) |>
         try_catch_cnds()
-      out |> log_cnds()
+      out |> log_cnds(ns = ns)
       return(out$result)
     })
 
@@ -211,7 +211,7 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
         })
       ) |>
         try_catch_cnds()
-      out |> log_cnds()
+      out |> log_cnds(ns = ns)
       return(out$result)
     })
 
@@ -227,7 +227,7 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
           show_hardware = values$show_hardware
         ) |>
         try_catch_cnds()
-      out |> log_cnds()
+      out |> log_cnds(ns = ns)
       return(out$result)
     })
 
@@ -271,6 +271,7 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
       "structures",
       get_data = get_structures_for_table,
       id_column = "path",
+      escape_headers = FALSE, # to render HTML
       # row grouping
       extensions = "RowGroup",
       rowGroup = list(dataSrc = 1),
@@ -284,7 +285,7 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
       ordering = FALSE,
       dom = "ft",
       scrollX = TRUE,
-      scrollY = "calc(100vh - 620px)", # account for size of header and devices table with the -x px
+      scrollY = "max(200px, calc(100vh - 620px))", # account for size of header and devices table with the -x px
       selection = "single",
       auto_reselect = FALSE
     )
@@ -304,7 +305,10 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
       structure <- get_structures() |> filter(.data$path == !!path)
       if (all(structure$readonly)) {
         values$edit_structure <- tibble()
-        log_info(ns = ns, user_msg = paste(path, "is read-only"))
+        log_info(
+          ns = ns,
+          user_msg = sprintf("Control structure '%s' is read-only", path)
+        )
       } else {
         values$edit_structure <- structure
 
@@ -590,34 +594,46 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
 
     # events stream ============
 
-    ## reactive stream
-    get_stream_events <- reactivePoll(
+    ## reactive stream events poll
+    get_stream_events_poll <- reactivePoll(
       # check every 1s (adjust as needed)
       intervalMillis = 1000,
       session = session,
 
       # return value indicating changes
       checkFunc = function() {
-        if (is_empty(get_devices()) || is_empty(devices$get_selected_ids())) {
-          return(NULL)
-        }
-        get_devices() |>
-          filter(.data$coreid %in% devices$get_selected_ids()) |>
-          get_stream_events_for_devices() |>
-          digest::digest()
+        # safely call function
+        out <- get_stream_events_for_app(
+          devices = get_devices(),
+          core_ids = devices$get_selected_ids()
+        ) |>
+          try_catch_cnds()
+        # don't show because this runs regularly
+        return(digest::digest(out))
       },
 
       # get stream events
       valueFunc = function() {
-        if (is_empty(get_devices()) || is_empty(devices$get_selected_ids())) {
-          return(NULL)
-        }
-        get_devices() |>
-          filter(.data$coreid %in% devices$get_selected_ids()) |>
-          get_stream_events_for_devices() |>
-          prepare_stream_events_for_table()
+        # safely call function
+        out <- get_stream_events_for_app(
+          devices = get_devices(),
+          core_ids = devices$get_selected_ids(),
+          timezone = get_timezone(),
+          prepare_for_table = TRUE
+        ) |>
+          try_catch_cnds()
+        # don't show, return
+        return(out)
       }
     )
+
+    ## actual stream events function (to safely query)
+    get_stream_events <- reactive({
+      req(input$events_stream)
+      out <- get_stream_events_poll()
+      out |> log_cnds(ns = ns)
+      return(out$result)
+    })
 
     ## events stream modal
     events_modal <- modalDialog(
@@ -653,26 +669,25 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
     )
     # show events modal
     observeEvent(input$events_stream, {
+      log_info(ns = ns, user_msg = "Fetching events stream")
+      req(get_stream_events())
       showModal(events_modal)
     })
+
     # show/hide json area and code button
     observeEvent(
       events$get_selected_ids(),
       {
         if (!is_empty(events$get_selected_ids())) {
-          out <- try_catch_cnds(
+          # update editor value safely
+          out <-
             shinyAce::updateAceEditor(
               session,
               "data_json",
-              events$get_selected_items()$data |>
-                jsonlite::fromJSON() |>
-                jsonlite::toJSON(
-                  auto_unbox = TRUE,
-                  null = "null",
-                  pretty = TRUE
-                )
-            )
-          )
+              events$get_selected_items() |>
+                get_pretty_json_event_data_for_app()
+            ) |>
+            try_catch_cnds(augment_message = "error processing event data")
           if (nrow(out$conditions) > 0) {
             shinyAce::updateAceEditor(
               session,
@@ -680,6 +695,7 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
               ""
             )
           }
+          out |> log_cnds(ns = ns)
         }
         shinyjs::toggleElement(
           "data_json_div",
@@ -724,16 +740,20 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
 
     ## function to get the command logs
     get_command_logs_for_table <- reactive({
-      input$command_logs
-      isolate({
-        req(get_devices())
-        req(devices$get_selected_ids())
-        logs <- get_devices() |>
-          filter(.data$coreid %in% devices$get_selected_ids()) |>
-          get_command_logs_for_devices(token = token)
-        logs |>
-          prepare_command_logs_for_table(timezone = get_timezone())
-      })
+      req(input$command_logs)
+
+      # safely call function
+      out <- get_command_logs_in_app(
+        devices = isolate(get_devices()),
+        core_ids = isolate(devices$get_selected_ids()),
+        token = token
+      ) |>
+        prepare_command_logs_for_table_in_app(
+          timezone = isolate(get_timezone())
+        ) |>
+        try_catch_cnds()
+      out |> log_cnds(ns = ns)
+      return(out$result)
     })
 
     ## logs modal
@@ -746,6 +766,8 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
       easyClose = TRUE
     )
     observeEvent(input$command_logs, {
+      log_info(ns = ns, user_msg = "Fetching command logs")
+      req(get_command_logs_for_table())
       showModal(logs_modal)
     })
 

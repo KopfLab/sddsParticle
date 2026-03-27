@@ -98,9 +98,9 @@ prepare_simplified_tree_w_values_for_table <- function(
   simplified_tree_w_valus |>
     mutate(
       device_info = sprintf(
-        "%s (%s ago)",
+        "<span style='font-size: 200%%;'>%s</span><br>\n(%s ago)",
         corename,
-        fmt_duration(
+        format_duration(
           lubridate::now(tzone = lubridate::tz(.data$published_at)) -
             .data$published_at
         )
@@ -124,13 +124,30 @@ simplify_device_info <- function(devices) {
   devices |> select(where(~ !is.list(.x)))
 }
 
-## events ============
+## stream events ============
 
-# get events for the provided devices
-get_stream_events_for_devices <- function(devices) {
-  # particle_stream_get_events() |>
-  particle_stream_get_events_log() |>
-    inner_join(devices |> select(c("coreid", "name")), by = "coreid")
+# get streams events for app
+get_stream_events_for_app <- function(
+  devices,
+  core_ids,
+  timezone,
+  prepare_for_table = FALSE
+) {
+  if (is_empty(devices) || is_empty(core_ids)) {
+    return(NULL)
+  }
+  events <-
+    particle_stream_get_events_log() |>
+    inner_join(
+      devices |>
+        filter(.data$coreid %in% !!core_ids) |>
+        select(c("coreid", "name")),
+      by = "coreid"
+    )
+  if (prepare_for_table) {
+    events <- events |> prepare_stream_events_for_table(timezone = timezone)
+  }
+  return(events)
 }
 
 # prep events for table
@@ -159,6 +176,12 @@ prepare_stream_events_for_table <- function(events, timezone = Sys.timezone()) {
     )
 }
 
+get_pretty_json_event_data_for_app <- function(events) {
+  events$data |>
+    jsonlite::fromJSON() |>
+    jsonlite::toJSON(auto_unbox = TRUE, null = "null", pretty = TRUE)
+}
+
 ## commands / value changes ======
 
 prepare_command_queue_entries <- function(tree_w_new_values) {
@@ -176,11 +199,9 @@ prepare_command_queue_entries <- function(tree_w_new_values) {
 ## command logs ===========
 
 # get command logs
-get_command_logs_for_devices <- function(
-  devices,
-  token = keyring::key_get("particle")
-) {
+get_command_logs_in_app <- function(devices, core_ids, token) {
   devices |>
+    filter(.data$coreid %in% core_ids) |>
     select("coreid", "name") |>
     mutate(
       logs = .data$coreid |>
@@ -189,9 +210,9 @@ get_command_logs_for_devices <- function(
 }
 
 # prep command logs for table
-prepare_command_logs_for_table <- function(
+prepare_command_logs_for_table_in_app <- function(
   cmd_logs,
-  timezone = Sys.timezone()
+  timezone
 ) {
   cmd_logs |>
     mutate(
