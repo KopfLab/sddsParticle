@@ -36,70 +36,13 @@ try_catch_cnds <- function(
     }
 
     # truncate call stack to omit the helper function?
-    # note: this does more than just rebase the call stack (i.e. trace(base = env) is not the same)
-    if (truncate_call_stack && is(cnd$trace, "rlang_trace")) {
-      is_helper_start <- cnd$trace$call |>
-        sapply(function(x) as.character(x)[1] == "try_catch_cnds")
-      is_helper_end <- cnd$trace$call |>
-        sapply(function(x) as.character(x)[1] == "withCallingHandlers")
-      # found start and end? --> remove helpers from call stack
-      if (
-        any(is_helper_start) && any(is_helper_end[cumsum(is_helper_start) > 0])
-      ) {
-        # for each helper (i.e. also works in nested try_catch_cnds calls)
-        total_shift <- 0
-        for (first_call in which(is_helper_start)) {
-          last_call <- first_call +
-            which(is_helper_end[seq_along(is_helper_end) > first_call])[1]
-          if (last_call > first_call) {
-            shift <- last_call - first_call + 1L
-            cnd$trace <-
-              cnd$trace |>
-              # correct parent references
-              dplyr::mutate(
-                parent = ifelse(
-                  .data$parent > last_call - total_shift,
-                  .data$parent - shift,
-                  .data$parent
-                )
-              ) |>
-              # omit the helper callstack
-              dplyr::filter(
-                dplyr::row_number() < first_call - total_shift |
-                  dplyr::row_number() > last_call - total_shift
-              )
-            if (!is.null(cnd$parent) && !is.null(cnd$parent$trace)) {
-              cnd$parent$trace <- cnd$trace
-            }
-            total_shift <- total_shift + shift
-          }
-        }
-      }
+    if (truncate_call_stack) {
+      cnd <- cnd |> truncate_call_stack()
     }
 
     # truncate shiny call stack to focus only on last part of stacktrace?
-    if (truncate_shiny_call_stack && is(cnd$trace, "rlang_trace")) {
-      is_shiny_stacktrace_start <- cnd$trace$call |>
-        sapply(function(x) as.character(x)[1] == "..stacktraceon..")
-      # found any? --> remove everything before
-      if (any(is_shiny_stacktrace_start)) {
-        last_call <- max(which(is_shiny_stacktrace_start))
-        cnd$trace <-
-          cnd$trace |>
-          # correct parent references
-          dplyr::mutate(
-            parent = case_when(
-              dplyr::row_number() == last_call + 1L ~ 0L, # new root
-              .data$parent > last_call ~ .data$parent - last_call,
-              TRUE ~ .data$parent
-            )
-          ) |>
-          # omit the helper callstack
-          dplyr::filter(dplyr::row_number() > last_call)
-        if (!is.null(cnd$parent) && !is.null(cnd$parent$trace)) {
-          cnd$parent$trace <- cnd$trace
-        }
-      }
+    if (truncate_shiny_call_stack) {
+      cnd <- cnd |> truncate_shiny_call_stack()
     }
 
     # store caught error
@@ -110,15 +53,24 @@ try_catch_cnds <- function(
 
   # deal with non rlang errors efficienctly
   augment_non_rlang_error <- function(cnd) {
-    if (!is(cnd, "rlang_error") && !augment_errors_to_rlang) {
-      # non rlang_error staying a non-rlang_error
-      stop(cnd)
-    } else if (!is(cnd, "rlang_error") && augment_errors_to_rlang) {
-      # augment non rlang-error (have to provide a message, otherwise it doesn't work)
-      abort(message = augment_message, parent = cnd, call = call)
+    if (is(cnd, "rlang_error")) {
+      # always keep rlang error the same
+      cnd_signal(cnd)
     }
-    # keep rlang errors the same (by providing message = "", error stays exactly as is)
-    abort(message = "", parent = cnd, call = call, trace = cnd$trace)
+
+    if (!augment_errors_to_rlang) {
+      # keep non-rlang error the same
+      stop(cnd)
+    }
+
+    # augment non rlang-error
+    # adds base::.handleSimpleError(...) entry in the stack trace
+    # could remove this but it's kinda nice to see the augmentation
+    abort(
+      message = conditionMessage(cnd),
+      call = conditionCall(cnd),
+      trace = trace_back()
+    )
   }
 
   # don't catch warnings if not wanted to make sure they get handled as originally intended
@@ -151,6 +103,82 @@ try_catch_cnds <- function(
   # return
   return(list(result = result, conditions = conds))
 }
+
+# helper function to truncate call stacks (removing the try_catch_cnds wrapper)
+# note: this does more than just rebase the call stack (i.e. trace(base = env) is not the same)
+# @param recursive whether to also truncate parents
+truncate_call_stack <- function(cnd, recursive = TRUE) {
+  if (!is.null(cnd$parent)) {
+    cnd$parent <- cnd$parent |> truncate_call_stack()
+  }
+  if (is.null(cnd$trace)) {
+    return(cnd)
+  }
+  is_helper_start <- cnd$trace$call |>
+    sapply(function(x) as.character(x)[1] == "try_catch_cnds")
+  is_helper_end <- cnd$trace$call |>
+    sapply(function(x) as.character(x)[1] == "withCallingHandlers")
+  # found start and end? --> remove helpers from call stack
+  if (any(is_helper_start) && any(is_helper_end[cumsum(is_helper_start) > 0])) {
+    # for each helper (i.e. also works in nested try_catch_cnds calls)
+    total_shift <- 0
+    for (first_call in which(is_helper_start)) {
+      last_call <- first_call +
+        which(is_helper_end[seq_along(is_helper_end) > first_call])[1]
+      if (last_call > first_call) {
+        shift <- last_call - first_call + 1L
+        cnd$trace <-
+          cnd$trace |>
+          # correct parent references
+          dplyr::mutate(
+            parent = ifelse(
+              .data$parent > last_call - total_shift,
+              .data$parent - shift,
+              .data$parent
+            )
+          ) |>
+          # omit the helper callstack
+          dplyr::filter(
+            dplyr::row_number() < first_call - total_shift |
+              dplyr::row_number() > last_call - total_shift
+          )
+
+        total_shift <- total_shift + shift
+      }
+    }
+  }
+  return(cnd)
+}
+
+# helper function to truncate shiny call stack
+truncate_shiny_call_stack <- function(cnd, recursive = TRUE) {
+  if (!is.null(cnd$parent)) {
+    cnd$parent <- cnd$parent |> truncate_shiny_call_stack()
+  }
+  if (is.null(cnd$trace)) {
+    return(cnd)
+  }
+  is_shiny_stacktrace_start <- cnd$trace$call |>
+    sapply(function(x) as.character(x)[1] == "..stacktraceon..")
+  # found any? --> remove everything before
+  if (any(is_shiny_stacktrace_start)) {
+    last_call <- max(which(is_shiny_stacktrace_start))
+    cnd$trace <-
+      cnd$trace |>
+      # correct parent references
+      dplyr::mutate(
+        parent = case_when(
+          dplyr::row_number() == last_call + 1L ~ 0L, # new root
+          .data$parent > last_call ~ .data$parent - last_call,
+          TRUE ~ .data$parent
+        )
+      ) |>
+      # omit the helper callstack
+      dplyr::filter(dplyr::row_number() > last_call)
+  }
+  return(cnd)
+}
+
 
 # condition cnd message to preserve intended linebreaks and avoid introduced linebreaks
 condition_cnd_message <- function(cnd) {
@@ -481,6 +509,11 @@ abort_cnds <- function(
   .call = caller_call(),
   .env = caller_env()
 ) {
+  # allow cnds to be a try_catch_cnds return object
+  if (!is.data.frame(conditions) && is.data.frame(conditions$conditions)) {
+    conditions <- conditions$conditions
+  }
+
   # throw an error
   if (nrow(conditions) > 0) {
     summarize_and_format_cnds(
