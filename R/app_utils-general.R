@@ -82,7 +82,8 @@ log_cnds <- function(
       } else {
         format_inline("{qty(nrow(errors))}Error{?s} in {call}()")
       },
-      error = errors$condition |> purrr::map_chr(format)
+      error = errors$condition |>
+        purrr::map_chr(~ format(.x) |> paste(collapse = "\n"))
     )
   }
 }
