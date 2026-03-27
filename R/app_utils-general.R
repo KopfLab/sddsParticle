@@ -64,7 +64,7 @@ log_cnds <- function(
         user_msg
       } else {
         format_inline(
-          "Encountered {nrow(warnings)} warning{?s} in {call}"
+          "Encountered {nrow(warnings)} warning{?s} in {call}()"
         )
       },
       warning = warnings |>
