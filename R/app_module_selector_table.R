@@ -163,7 +163,6 @@ module_selector_table_server <- function(
           isolate({
             values$table_data <- get_table_df_visible_cols()
             # header columns
-            print(names(values$table_data))
             if (is.null(container)) {
               container <- tags$table(
                 DT::tableHeader(
