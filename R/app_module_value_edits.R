@@ -11,6 +11,19 @@ generate_standard_input_row <- function(label, widget, units = NA_character_) {
   )
 }
 
+value_null_input <- function(id) {
+  moduleServer(id, function(input, output, session) {
+    list(
+      generate_ui = function(label, ...) {
+        generate_standard_input_row(label, null_value_to_text())
+      },
+      value_to_text = null_value_to_text,
+      get_value = function(...) NULL,
+      get_text = null_value_to_text
+    )
+  })
+}
+
 # integer input
 value_integer_input <- function(id) {
   moduleServer(id, function(input, output, session) {

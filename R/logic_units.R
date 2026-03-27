@@ -14,6 +14,8 @@ add_units <- function(text, units) {
 
 # standard units converters ======
 
+null_value_to_text <- function(...) "<no value>"
+
 text_value_to_text <- function(value, units) {
   as.character(value) |> add_units(units)
 }

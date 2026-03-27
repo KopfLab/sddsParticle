@@ -466,7 +466,7 @@ sdds_combine_tree_and_values <- function(tree, values) {
     if (any(tree_w_values$v_missing)) {
       info <- info |>
         c(
-          "{sum(tree_w_values$v_missing)} value{?s} are missing",
+          "{sum(tree_w_values$v_missing)} value{?s} are missing"
         )
     }
     if (any(!tree_w_values$v_valid)) {
@@ -527,7 +527,7 @@ sdds_simplify_trees_and_values <- function(
 
   # standard text converters
   converters <- list(
-    "null" = function(...) NA_character_,
+    "null" = null_value_to_text,
     "enum" = enum_value_to_text,
     "var_interval" = var_intervals_value_to_text,
     "duration" = duration_value_to_text,
@@ -603,7 +603,9 @@ sdds_simplify_trees_and_values <- function(
       text = purrr::pmap_chr(
         list(value = .data$value, units = .data$base_units, type = .data$type),
         function(value, units, type, converters = list()) {
-          if (type %in% names(converters)) {
+          if (is.null(value)) {
+            return(null_value_to_text())
+          } else if (type %in% names(converters)) {
             as.character(converters[[type]](value, units))
           } else {
             NA_character_
