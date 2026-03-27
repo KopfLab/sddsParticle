@@ -16,6 +16,8 @@ try_catch_cnds <- function(
   catch_warnings = TRUE,
   truncate_call_stack = TRUE,
   truncate_shiny_call_stack = TRUE,
+  augment_errors_to_rlang = TRUE,
+  augment_message = "caught error",
   call = caller_call()
 ) {
   conds <- tibble::tibble(type = character(0), condition = list())
@@ -28,6 +30,11 @@ try_catch_cnds <- function(
   }
 
   handle_error <- function(cnd) {
+    # re-throw error? (i.e. don't catch it)
+    if (!catch_errors) {
+      abort(message = "", parent = cnd, call = call, trace = cnd$trace)
+    }
+
     # truncate call stack to omit the helper function?
     # note: this does more than just rebase the call stack (i.e. trace(base = env) is not the same)
     if (truncate_call_stack && is(cnd$trace, "rlang_trace")) {
@@ -61,6 +68,9 @@ try_catch_cnds <- function(
                 dplyr::row_number() < first_call - total_shift |
                   dplyr::row_number() > last_call - total_shift
               )
+            if (!is.null(cnd$parent) && !is.null(cnd$parent$trace)) {
+              cnd$parent$trace <- cnd$trace
+            }
             total_shift <- total_shift + shift
           }
         }
@@ -86,23 +96,29 @@ try_catch_cnds <- function(
           ) |>
           # omit the helper callstack
           dplyr::filter(dplyr::row_number() > last_call)
+        if (!is.null(cnd$parent) && !is.null(cnd$parent$trace)) {
+          cnd$parent$trace <- cnd$trace
+        }
       }
     }
 
-    # re-throw error or catch it?
-    if (!catch_errors) {
-      abort(
-        message = NULL,
-        parent = cnd,
-        class = class(cnd),
-        call = call,
-        trace = cnd$trace
-      )
-    } else {
-      conds <<- conds |>
-        dplyr::bind_rows(tibble::tibble(type = "error", condition = list(cnd)))
-    }
+    # store caught error
+    conds <<- conds |>
+      dplyr::bind_rows(tibble::tibble(type = "error", condition = list(cnd)))
     return(error_value)
+  }
+
+  # deal with non rlang errors efficienctly
+  augment_non_rlang_error <- function(cnd) {
+    if (!is(cnd, "rlang_error") && !augment_errors_to_rlang) {
+      # non rlang_error staying a non-rlang_error
+      stop(cnd)
+    } else if (!is(cnd, "rlang_error") && augment_errors_to_rlang) {
+      # augment non rlang-error (have to provide a message, otherwise it doesn't work)
+      abort(message = augment_message, parent = cnd, call = call)
+    }
+    # keep rlang errors the same (by providing message = "", error stays exactly as is)
+    abort(message = "", parent = cnd, call = call, trace = cnd$trace)
   }
 
   # don't catch warnings if not wanted to make sure they get handled as originally intended
@@ -111,12 +127,16 @@ try_catch_cnds <- function(
     result <- tryCatch(
       error = handle_error,
       withCallingHandlers(
+        expr,
         warning = handle_warning,
-        expr
+        error = augment_non_rlang_error
       )
     )
   } else {
-    result <- tryCatch(error = handle_error, withCallingHandlers(expr))
+    result <- tryCatch(
+      error = handle_error,
+      withCallingHandlers(expr, error = augment_non_rlang_error)
+    )
   }
 
   # pull out call and message
