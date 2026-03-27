@@ -302,120 +302,93 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
     observeEvent(structures$get_selected_ids(), {
       req(structures$get_selected_ids())
       path <- structures$get_selected_ids()
-      structure <- get_structures() |> filter(.data$path == !!path)
+
+      # safely call function
+      out <- get_structures() |>
+        get_structures_for_path_in_app(path = path) |>
+        try_catch_cnds()
+      out |> log_cnds(ns = ns)
+      structure <- out$result
+      if (is.null(structure)) {
+        return()
+      }
+
+      # read only?
       if (all(structure$readonly)) {
         values$edit_structure <- tibble()
         log_info(
           ns = ns,
           user_msg = sprintf("Control structure '%s' is read-only", path)
         )
-      } else {
-        values$edit_structure <- structure
-
-        # generate edit ui fields
-        edit_ui <-
-          structure |>
-          mutate(
-            ui = purrr::pmap(
-              list(
-                type = .data$type,
-                coreid = .data$coreid,
-                label = .data$corename,
-                value = .data$value,
-                units = .data$base_units,
-                choices = .data$enum_values
-              ),
-              function(type, coreid, label, value, units, choices) {
-                if (!type %in% names(edit_modules)) {
-                  return(generate_standard_input_row(
-                    label,
-                    sprintf("unsupported value type '%s'", type)
-                  ))
-                }
-                return(edit_modules[[type]]$generate_ui(
-                  coreid = coreid,
-                  label = label,
-                  value = value,
-                  units = units,
-                  choices = choices
-                ))
-              }
-            )
-          ) |>
-          pull(.data$ui) |>
-          tagList()
-
-        # generate modal diaolog
-        modalDialog(
-          title = h3(path),
-          edit_ui,
-          footer = tagList(
-            actionButton(
-              ns("save_edit"),
-              "Queue change",
-              icon = icon("save"),
-              style = "border: 0;"
-            ) |>
-              add_tooltip(
-                "Add the change to the command queue (click Send to send to devices)."
-              ),
-            modalButton("Cancel")
-          ),
-          size = "m",
-          easyClose = TRUE
-        ) |>
-          showModal()
+        return()
       }
+
+      # keep track of edit structure
+      values$edit_structure <- structure
+
+      # safely generate edit ui fields
+      out <- structure |>
+        prepare_edit_ui_in_app(edit_modules = edit_modules) |>
+        try_catch_cnds()
+      out |> log_cnds(ns = ns)
+      edit_ui <- out$result
+      if (is.null(edit_ui)) {
+        return()
+      }
+
+      # generate modal diaolog
+      modalDialog(
+        title = h3(path),
+        edit_ui,
+        footer = tagList(
+          actionButton(
+            ns("save_edit"),
+            "Queue change",
+            icon = icon("save"),
+            style = "border: 0;"
+          ) |>
+            add_tooltip(
+              "Add the change to the command queue (click Send to send to devices)."
+            ),
+          modalButton("Cancel")
+        ),
+        size = "m",
+        easyClose = TRUE
+      ) |>
+        showModal()
     })
 
     # save edits
     observeEvent(input$save_edit, {
       req(nrow(values$edit_structure) > 0)
 
-      # any new values?
-      new_values <-
+      # safely prepare new values
+      out <-
         values$edit_structure |>
-        mutate(
-          new_value = purrr::pmap(
-            list(type = .data$type, coreid = .data$coreid),
-            function(type, coreid) {
-              if (!type %in% names(edit_modules)) {
-                return(NULL)
-              }
-              return(edit_modules[[type]]$get_value(coreid))
-            }
-          ),
-          new_text = purrr::pmap_chr(
-            list(
-              type = .data$type,
-              coreid = .data$coreid,
-              units = .data$base_units
-            ),
-            function(type, coreid, units) {
-              if (!type %in% names(edit_modules)) {
-                return(NA_character_)
-              }
-              return(edit_modules[[type]]$get_text(coreid, units))
-            }
-          ),
-          has_changed = purrr::map2_lgl(
-            value,
-            new_value,
-            ~ !is.null(.y) & !identical(.x, .y)
-          )
-        ) |>
-        filter(.data$has_changed)
-
-      if (nrow(new_values) > 0) {
-        values$command_queue <- bind_rows(
-          isolate(values$command_queue),
-          new_values |> prepare_command_queue_entries()
-        ) |>
-          mutate(row_id = row_number())
-      }
+        prepare_new_values_in_app(edit_modules = edit_modules) |>
+        try_catch_cnds()
 
       # close model dialog
       removeModal()
+
+      # check for issues
+      out |> log_cnds(ns = ns)
+      new_values <- out$result
+      if (is.null(new_values) || nrow(new_values) == 0) {
+        return()
+      }
+
+      # update values
+      out <-
+        update_command_queue_entries_in_app(
+          existing_queue = isolate(values$command_queue),
+          tree_w_new_values = new_values
+        ) |>
+        try_catch_cnds()
+      out |> log_cnds(ns = ns)
+      if (!is.null(out$result)) {
+        values$command_queue <- out$result
+      }
     })
 
     # send commands queue =========
@@ -533,26 +506,24 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
       ordering = FALSE
     )
 
-    ## function to send the commands
+    ## function to send the commands to one
     send_commands <- function(coreid, corename, cmds) {
       log_info(
         ns = ns,
-        user_msg = sprintf(
-          "Sending %d commands to %s",
-          length(cmds),
-          corename[1]
+        user_msg = format_inline(
+          "Sending {length(cmds)} command{?s} to {corename[1]}"
         )
       )
+      # safely send command
       out <- coreid[1] |>
         particle_send_sdds_commands(cmds = cmds) |>
         try_catch_cnds()
       if (nrow(out$conditions) > 0) {
-        # TODO: how to better provide the cnds to the error function?
-        show_cnds(out$conditions)
         log_error(
           ns = ns,
-          user_msg = paste0("could not send commands to ", corename[1])
+          user_msg = format_inline("could not send commands to {corename[1]}")
         )
+        out |> log_cnds(ns = ns)
         return(rep(FALSE, length(cmds)))
       }
       return(out$result$success)
@@ -563,33 +534,27 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
       req(nrow(values$command_queue) > 0)
       req(queue$get_selected_ids())
 
+      # fetch commands to send
       cmds_to_send <- values$command_queue |>
         filter(.data$row_id %in% queue$get_selected_ids())
-      print(cmds_to_send)
 
+      # send commands (done safely for each to catch individual errors)
       cmds_results <- cmds_to_send |>
         mutate(
           .by = "coreid",
           success = send_commands(coreid[1], corename[1], command)
         )
-      print(cmds_results)
 
-      values$command_queue <- values$command_queue |>
-        left_join(cmds_results |> select("row_id", "success"), by = "row_id") |>
-        mutate(
-          status = case_when(
-            is.na(.data$success) ~ .data$status,
-            .data$success ~ "success",
-            !.data$success ~ "failed"
-          )
-        ) |>
-        select(-"success") |>
-        arrange(.data$row_id)
-      print(values$command_queue)
-
-      # FIXME: continue here!
-
-      #particle_send_sdds_commands("0a10aced202194944a058c18", cmds = c("sensor.action=beamOff"))
+      # safely update command queue status
+      out <- update_command_queue_status_in_app(
+        existing_queue = values$command_queue,
+        cmds_results = cmds_results
+      ) |>
+        try_catch_cnds()
+      out |> log_cnds(ns = ns)
+      if (!is.null(out$result)) {
+        values$command_queue <- out$result
+      }
     })
 
     # events stream ============

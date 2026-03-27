@@ -182,10 +182,84 @@ get_pretty_json_event_data_for_app <- function(events) {
     jsonlite::toJSON(auto_unbox = TRUE, null = "null", pretty = TRUE)
 }
 
-## commands / value changes ======
+## value edits ======
 
-prepare_command_queue_entries <- function(tree_w_new_values) {
-  tree_w_new_values |>
+get_structures_for_path_in_app <- function(structures, path) {
+  structures |> filter(.data$path == !!path)
+}
+
+prepare_edit_ui_in_app <- function(structure, edit_modules) {
+  structure |>
+    mutate(
+      ui = purrr::pmap(
+        list(
+          type = .data$type,
+          coreid = .data$coreid,
+          label = .data$corename,
+          value = .data$value,
+          units = .data$base_units,
+          choices = .data$enum_values
+        ),
+        function(type, coreid, label, value, units, choices) {
+          if (!type %in% names(edit_modules)) {
+            return(generate_standard_input_row(
+              label,
+              sprintf("unsupported value type '%s'", type)
+            ))
+          }
+          return(edit_modules[[type]]$generate_ui(
+            coreid = coreid,
+            label = label,
+            value = value,
+            units = units,
+            choices = choices
+          ))
+        }
+      )
+    ) |>
+    pull(.data$ui) |>
+    tagList()
+}
+
+prepare_new_values_in_app <- function(structure, edit_modules) {
+  structure |>
+    mutate(
+      new_value = purrr::pmap(
+        list(type = .data$type, coreid = .data$coreid),
+        function(type, coreid) {
+          if (!type %in% names(edit_modules)) {
+            return(NULL)
+          }
+          return(edit_modules[[type]]$get_value(coreid))
+        }
+      ),
+      new_text = purrr::pmap_chr(
+        list(
+          type = .data$type,
+          coreid = .data$coreid,
+          units = .data$base_units
+        ),
+        function(type, coreid, units) {
+          if (!type %in% names(edit_modules)) {
+            return(NA_character_)
+          }
+          return(edit_modules[[type]]$get_text(coreid, units))
+        }
+      ),
+      has_changed = purrr::map2_lgl(
+        value,
+        new_value,
+        ~ !is.null(.y) & !identical(.x, .y)
+      )
+    ) |>
+    filter(.data$has_changed)
+}
+
+update_command_queue_entries_in_app <- function(
+  existing_queue,
+  tree_w_new_values
+) {
+  new_queue <- tree_w_new_values |>
     mutate(
       command = purrr::map2_chr(
         .data$path,
@@ -194,7 +268,25 @@ prepare_command_queue_entries <- function(tree_w_new_values) {
       ),
       status = NA_character_
     )
+  existing_queue |>
+    bind_rows(new_queue) |>
+    mutate(row_id = row_number())
 }
+
+update_command_queue_status_in_app <- function(existing_queue, cmds_results) {
+  existing_queue |>
+    left_join(cmds_results |> select("row_id", "success"), by = "row_id") |>
+    mutate(
+      status = case_when(
+        is.na(.data$success) ~ .data$status,
+        .data$success ~ "success",
+        !.data$success ~ "failed"
+      )
+    ) |>
+    select(-"success") |>
+    arrange(.data$row_id)
+}
+
 
 ## command logs ===========
 
