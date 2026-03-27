@@ -1,5 +1,5 @@
 # format duration as approximate time (2.3 weeks, 1.5 hrs)
-fmt_duration <- function(x) {
+format_duration <- function(x) {
   lubridate::as.duration(x) |>
     as.character() |>
     stringr::str_extract("(\\d+(\\.\\d+)?(?=s$)|(?<=~)\\d[^)]+)") |>
@@ -7,7 +7,7 @@ fmt_duration <- function(x) {
 }
 
 # format duration in long format (5 hrs 2 minutes 30 sections)
-fmt_duration_long <- function(x) {
+format_duration_long <- function(x) {
   sec <- lubridate::as.duration(x) |> as.numeric("sec")
   d <- sec %/% 86400
   h <- sec %/% 3600 %% 24
