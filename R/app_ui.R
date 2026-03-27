@@ -24,10 +24,7 @@ app_ui <- function(default_timezone = NULL) {
         collapsed = FALSE,
         disable = FALSE,
         width = app_title_width,
-        shinyjs::useShinyjs(), # enable shinyjs
-        shinytoastr::useToastr(), # enable toaster
-        prompter::use_prompt(), # enable prompter
-        use_app_utils(),
+        sdds_header(),
         tags$head(
           # css headers
           tags$style(

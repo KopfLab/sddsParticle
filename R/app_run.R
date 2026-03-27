@@ -1,6 +1,6 @@
 #' Run the user interface
 #'
-#' This function runs the user interface for the sdds particle device controller.
+#' This function runs a simple example GUI that uses the sdds particle device controller modulre.
 #'
 #' @param timezone the timezone to user for datetime calculations
 #' @inheritParams particle_get_device_info
@@ -20,10 +20,29 @@ sdds_run_gui <- function(
     if (shiny::in_devmode()) " in DEV mode"
   )
 
+  # minimalist ui
+  ui <- fluidPage(
+    title = "SDDS Particle GUI",
+    sdds_header(),
+    selectInput(
+      "timezone",
+      label = NULL,
+      choices = OlsonNames(),
+      selected = timezone
+    ) |>
+      shinydashboard::box(title = "Timezone"),
+    sdds_ui("sdds")
+  )
+
+  # minimalist server
+  server <- function(input, output, session) {
+    sdds_server("sdds", token, reactive(input$timezone))
+  }
+
   # generate app
   shinyApp(
-    ui = app_ui(default_timezone = timezone),
-    server = app_server(token = token),
+    ui = ui,
+    server = server,
     onStart = sdds_onstart(token = token),
     options = options,
     enableBookmarking = enableBookmarking,

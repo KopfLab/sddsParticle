@@ -111,6 +111,17 @@ sdds_ui <- function(id) {
   )
 }
 
+#' @describeIn sdds_module call in ui head to include
+#' @export
+sdds_header <- function() {
+  tagList(
+    shinyjs::useShinyjs(), # enable shinyjs
+    shinytoastr::useToastr(), # enable toaster
+    prompter::use_prompt(), # enable prompter
+    use_app_utils() # enable app utils
+  )
+}
+
 #' @describeIn sdds_module generates the server for the sdds module
 #' @export
 sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
@@ -294,6 +305,7 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
 
     # editing modules
     edit_modules <- list(
+      "null" = value_null_input("null"),
       "integer" = value_integer_input("integer"),
       "enum" = value_enum_input("enum")
     )
