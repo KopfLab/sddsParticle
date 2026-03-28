@@ -34,7 +34,7 @@
 particle_stream_connect <- function(
   endpoint = "events/sddsData",
   token = keyring::key_get("particle"),
-  log = FALSE,
+  log = TRUE,
   events_callback = "sdds_cache_events"
 ) {
   # safety
@@ -69,15 +69,19 @@ particle_stream_connect <- function(
     )
 
   # start connection
-  cli_bullets(
-    c(
-      "i" = "Connecting to Particle events stream endpoint {.field endpoint} (log files are {.emph {if (log) 'enabled' else 'disabled'}}), events are{if (is.na(.ps$events_callback)) ' not'} processed{if (!is.na(.ps$events_callback)) paste0(' with ', .ps$events_callback, '()')}",
-      ">" = "use {.strong particle_stream_monitor()} to automatically printout incoming events",
-      ">" = "use {.strong particle_stream_is_connected()} to check on the connection status",
-      ">" = "use {.strong particle_stream_get_events()} to get the collected events",
-      ">" = "use {.strong particle_stream_disconnect()} to disconnect from the stream"
-    )
+  info <- c(
+    "i" = "Connecting to Particle events stream endpoint {.field {endpoint}} (log files are {.emph {if (log) 'enabled' else 'disabled'}}), events are{if (is.na(.ps$events_callback)) ' not'} processed{if (!is.na(.ps$events_callback)) paste0(' with ', .ps$events_callback, '()')}"
   )
+  if (interactive()) {
+    info <- info |>
+      c(
+        ">" = "use {.strong particle_stream_monitor()} to automatically printout incoming events",
+        ">" = "use {.strong particle_stream_is_connected()} to check on the connection status",
+        ">" = "use {.strong particle_stream_get_events()} to get the collected events",
+        ">" = "use {.strong particle_stream_disconnect()} to disconnect from the stream"
+      )
+  }
+  cli_bullets(info)
 
   # mark stream as active but not yet connected
   .ps$active <- TRUE
@@ -404,6 +408,13 @@ ps_update_raw_data_log <- function(raw_data) {
 # update error log
 ps_update_error_log <- function(error) {
   # errors are always logged
+  if (is_empty(error)) {
+    error <- "unknown"
+  } else if (is_error(error)) {
+    error <- conditionMessage(error)
+  } else {
+    error <- as.character(error[[1]])
+  }
   log <- tibble(
     timestamp = lubridate::now(tz = 'UTC'),
     error = !!error
