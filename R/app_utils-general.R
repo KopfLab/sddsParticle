@@ -4,7 +4,9 @@
 # call to use app util error formatting
 use_app_utils <- function() {
   tagList(
-    tags$style(HTML(".shiny-output-error-validation { color: #b30000; }")),
+    tags$style(HTML(
+      ".shiny-output-error-validation { color: #b30000; font-size: 200%;}"
+    )),
     tags$style(HTML(paste(format(cli::ansi_html_style()), collapse = "\n"))),
     tags$style(HTML(
       "
@@ -145,7 +147,9 @@ log_error <- function(..., ns = NULL, user_msg = NULL, error = NULL) {
     closeButton = TRUE
   )
 
-  showModal(error_screen)
+  if (!is.null(error)) {
+    showModal(error_screen)
+  }
 }
 
 log_warning <- function(..., ns = NULL, user_msg = NULL, warning = NULL) {
