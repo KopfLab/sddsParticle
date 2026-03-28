@@ -30,6 +30,11 @@ double_value_to_text <- function(value, units) {
 
 enum_value_to_text <- function(value, ...) as.character(value)
 
+version_value_to_text <- function(value, ...) {
+  value <- as.integer(value)
+  sprintf("%d.%d.%d", value %/% 10000, value %% 10000 %/% 100, value %% 100)
+}
+
 # complex units converters ======
 
 duration_value_to_text <- function(value, units) {

@@ -176,7 +176,7 @@ cache_treevalues <- function(values, cache_path = "cache/sdds_values.csv") {
       !is.na(.data$coreid),
       !is.na(.data$type),
       !is.na(.data$version),
-      !is.na(.data$texts_json)
+      !is.na(.data$values_json)
     )
   if (nrow(values) == 0) {
     return()
@@ -516,6 +516,7 @@ sdds_simplify_trees_and_values <- function(
     "duration" = expr(
       .data$base_units %in% c("ms", "sec", "min", "hour", "day")
     ),
+    "version" = expr(.data$is_int & .data$name == "version"),
     "integer" = expr(.data$is_int),
     "double" = expr(.data$is_dbl),
     "text" = expr(TRUE)
@@ -531,6 +532,7 @@ sdds_simplify_trees_and_values <- function(
     "enum" = enum_value_to_text,
     "var_interval" = var_intervals_value_to_text,
     "duration" = duration_value_to_text,
+    "version" = version_value_to_text,
     "integer" = integer_value_to_text,
     "double" = double_value_to_text,
     "text" = text_value_to_text
@@ -558,6 +560,9 @@ sdds_simplify_trees_and_values <- function(
   out <- trees_and_values |>
     dplyr::select("coreid", "published_at", "tree_w_values") |>
     tidyr::unnest("tree_w_values")
+  if (nrow(out) == 0) {
+    return(tibble())
+  }
 
   # parse
   types_expr <- types |> purrr::imap(~ expr((!!.x) ~ !!.y))
@@ -588,7 +593,7 @@ sdds_simplify_trees_and_values <- function(
         stringr::str_extract("(?<=_)([^.$]+)(?=(\\.|$))") |>
         stringr::str_replace_all("_", "/"),
       # figure out the label (without units)
-      label = name |> stringr::str_remove("_.*$"),
+      label = .data$name |> stringr::str_remove("_.*$"),
       # get value as list
       value = dplyr::case_when(
         .data$v_missing | !.data$v_valid | .data$is_struct ~ list(NULL),
@@ -613,7 +618,12 @@ sdds_simplify_trees_and_values <- function(
         },
         converters = !!converters
       )
-    )
+    ) |>
+    # arrangement
+    mutate(parent = factor_in_order(parent)) |>
+    mutate(.by = "coreid", row_order = row_number()) |>
+    arrange(.data$parent, .data$row_order) |>
+    select(-"row_order")
 
   # cleanup
   out <- out |>
