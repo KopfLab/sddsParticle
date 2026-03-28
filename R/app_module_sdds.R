@@ -197,49 +197,149 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
 
     # structures =======
 
+    ## reactive structures poll
+    get_structures_cache <- reactivePoll(
+      # check every 1s (adjust as needed)
+      intervalMillis = 1000,
+      session = session,
+
+      # return value indicating changes
+      checkFunc = function() {
+        # safely call function
+        out <-
+          get_cached_structures_in_app(core_ids = devices$get_selected_ids()) |>
+          try_catch_cnds()
+        # don't show because this runs regularly
+        return(digest::digest(out))
+      },
+
+      # get stream events
+      valueFunc = function() {
+        # safely call function
+        out <-
+          get_cached_structures_in_app(
+            # have to isolate here to avoid double trigger
+            core_ids = isolate(devices$get_selected_ids())
+          ) |>
+          try_catch_cnds()
+        # don't show, return
+        return(out)
+      }
+    )
+
     ## get structures
     get_structures <- reactive({
       req(get_devices())
-      req(devices$get_selected_ids())
-      log_info(ns = ns, user_msg = "Loading control structures")
-      # safely call function
-      out <- get_structures_in_app(
-        devices = get_devices(),
-        core_ids = devices$get_selected_ids(),
-        timezone = get_timezone(),
-        # TODO: these could be coming from the additional value modules/types/converters
-        additional_types = list(
-          "resistance" = expr(.data$base_units == "Ohm")
-        ),
-        additional_converters = list("resistance" = function(value, units) {
-          if (value > 1e6) {
-            paste0(value / 1e6, " MOhm")
-          } else if (value > 1e3) {
-            paste0(value / 1e3, " kOhm")
-          } else {
-            paste0(value / 1e3, " Ohm")
-          }
-        })
-      ) |>
+      out <- get_structures_cache()
+
+      # log cnds here instead of in the poll
+      out |> log_cnds(ns = ns)
+      if (is.null(out$result)) {
+        return(NULL)
+      }
+
+      # got new structures
+      log_info(ns = ns, user_msg = "(Re)loading control structures")
+
+      # parse the structures
+      out <- out$result |> sdds_parse_trees_and_values() |> try_catch_cnds()
+      out |> log_cnds(ns = ns)
+      if (is.null(out$result)) {
+        return(NULL)
+      }
+
+      # are there any missing structures?
+      structs <- out$result
+      out <- structs |>
+        get_missing_trees_in_app() |>
         try_catch_cnds()
       out |> log_cnds(ns = ns)
+      if (!is.null(out$result) && nrow(out$result) > 0) {
+        msg <- format_inline(
+          "Fetching structure{?s} for {out$result$type_version}"
+        )
+        log_info(ns = ns, user_msg = msg)
+
+        # safely request trees
+        out <- request_sdds_trees_in_app(
+          devices = get_devices(),
+          core_ids = out$result$coreid,
+          token = token
+        ) |>
+          try_catch_cnds()
+        out |> log_cnds(ns = ns)
+        if (!is.null(out$result) && any(!out$result$success)) {
+          msg <- format_inline(
+            "Failed to request self-describing data structures (SDDS) from {out$result$name[!out$result$success]}"
+          )
+          log_error(ns = ns, user_msg = msg)
+        }
+      }
+
+      # additional prep
+      out <- structs |>
+        get_structures_in_app(
+          devices = get_devices(),
+          timezone = get_timezone(),
+          # TODO: these could be coming from the additional value modules/types/converters
+          additional_types = list(
+            "resistance" = expr(.data$base_units == "Ohm")
+          ),
+          additional_converters = list("resistance" = function(value, units) {
+            if (value > 1e6) {
+              paste0(value / 1e6, " MOhm")
+            } else if (value > 1e3) {
+              paste0(value / 1e3, " kOhm")
+            } else {
+              paste0(value / 1e3, " Ohm")
+            }
+          })
+        ) |>
+        try_catch_cnds()
+      out |> log_cnds(ns = ns)
+      if (is.null(out$result) || nrow(out$result) == 0) {
+        return(NULL)
+      }
       return(out$result)
     })
 
+    ## structures for table
     get_structures_for_table <- reactive({
       # safety checks
-      validate(need(get_structures(), "No structures available."))
+      validate(need(get_structures(), "No structures available yet."))
 
       structures$reset_visible_columns()
       # safely call function
       out <- get_structures() |>
-        get_get_structures_for_table_in_app(
+        get_structures_for_table_in_app(
           show_system = values$show_system,
           show_hardware = values$show_hardware
         ) |>
         try_catch_cnds()
       out |> log_cnds(ns = ns)
       return(out$result)
+    })
+
+    ## fetch new values
+    observeEvent(input$fetch_values, {
+      req(get_devices())
+      req(devices$get_selected_ids())
+      log_info(ns = ns, user_msg = "Fetching values")
+
+      # safely request device info
+      out <- request_sdds_values_in_app(
+        devices = get_devices(),
+        core_ids = devices$get_selected_ids(),
+        token = token
+      ) |>
+        try_catch_cnds()
+      out |> log_cnds(ns = ns)
+      if (!is.null(out$result) && any(!out$result$success)) {
+        msg <- format_inline(
+          "Failed to request values for {out$result$name[!out$result$success]}"
+        )
+        log_error(ns = ns, user_msg = msg)
+      }
     })
 
     ## hide/show structures if there are selections
@@ -520,21 +620,17 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
 
     ## function to send the commands to one
     send_commands <- function(coreid, corename, cmds) {
-      log_info(
-        ns = ns,
-        user_msg = format_inline(
-          "Sending {length(cmds)} command{?s} to {corename[1]}"
-        )
+      msg <- format_inline(
+        "Sending {length(cmds)} command{?s} to {corename[1]}"
       )
+      log_info(ns = ns, user_msg = msg)
       # safely send command
       out <- coreid[1] |>
         particle_send_sdds_commands(cmds = cmds) |>
         try_catch_cnds()
       if (nrow(out$conditions) > 0) {
-        log_error(
-          ns = ns,
-          user_msg = format_inline("could not send commands to {corename[1]}")
-        )
+        msg <- format_inline("could not send commands to {corename[1]}")
+        log_error(ns = ns, user_msg = msg)
         out |> log_cnds(ns = ns)
         return(rep(FALSE, length(cmds)))
       }
@@ -572,7 +668,7 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
     # events stream ============
 
     ## reactive stream events poll
-    get_stream_events_poll <- reactivePoll(
+    get_stream_events_log <- reactivePoll(
       # check every 1s (adjust as needed)
       intervalMillis = 1000,
       session = session,
@@ -580,10 +676,8 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
       # return value indicating changes
       checkFunc = function() {
         # safely call function
-        out <- get_stream_events_for_app(
-          devices = get_devices(),
-          core_ids = devices$get_selected_ids()
-        ) |>
+        out <-
+          get_stream_events_log_in_app(core_ids = devices$get_selected_ids()) |>
           try_catch_cnds()
         # don't show because this runs regularly
         return(digest::digest(out))
@@ -592,23 +686,38 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
       # get stream events
       valueFunc = function() {
         # safely call function
-        out <- get_stream_events_for_app(
-          devices = get_devices(),
-          core_ids = devices$get_selected_ids(),
-          timezone = get_timezone(),
-          prepare_for_table = TRUE
-        ) |>
+        out <-
+          get_stream_events_log_in_app(
+            # have to isolate here to avoid double trigger
+            core_ids = isolate(devices$get_selected_ids())
+          ) |>
           try_catch_cnds()
         # don't show, return
         return(out)
       }
     )
 
-    ## actual stream events function (to safely query)
+    ## actual stream events function (to safe query)
     get_stream_events <- reactive({
       req(input$events_stream)
-      out <- get_stream_events_poll()
+
+      # get log (log cnds here instead of in the poll)
+      out <- get_stream_events_log()
       out |> log_cnds(ns = ns)
+      if (is.null(out$result)) {
+        return(NULL)
+      }
+
+      # additional prep
+      out <- out$result |>
+        get_stream_events_in_app(
+          devices = get_devices(),
+          timezone = get_timezone(),
+          prepare_for_table = TRUE
+        ) |>
+        try_catch_cnds()
+      out |> log_cnds(ns = ns)
+
       return(out$result)
     })
 
@@ -640,15 +749,34 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
             "Copy event data to clipboard."
           ) |>
           shinyjs::hidden(),
+        actionButton(
+          ns("clear_events"),
+          "Clear all",
+          icon = icon("xmark"),
+          style = "border: 0;"
+        ) |>
+          add_tooltip(
+            "Clear the events stream logs."
+          ),
         modalButton("Close")
       ),
       easyClose = TRUE
     )
+
     # show events modal
     observeEvent(input$events_stream, {
       log_info(ns = ns, user_msg = "Fetching events stream")
-      req(get_stream_events())
-      showModal(events_modal)
+      if (is_empty(get_stream_events())) {
+        log_warning(ns = ns, user_msg = "No events logged yet")
+      } else {
+        showModal(events_modal)
+      }
+    })
+
+    # clear the events stream logs
+    observeEvent(input$clear_events, {
+      ps_clear_logs()
+      removeModal()
     })
 
     # show/hide json area and code button
@@ -772,15 +900,11 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
 sdds_onstart <- function(token) {
   # return onStart function
   function() {
-    # ps_connect(
-    #   endpoint,
-    #   # this is a temporary access token (valid for 10 days) but still, don't commit it!
-    #   token = "c8f8da7475e2e3e01a7c16faa37519657bae9f0f",
-    #   log = FALSE
-    # )
-    # onStop(function() {
-    #   ps_disconnect()
-    #   cat("\nApplication closed.\n")
-    # })
+    log_info("connecting to particle stream")
+    particle_stream_connect(token = token, log = TRUE)
+    onStop(function() {
+      particle_stream_disconnect()
+      log_info("Application closed.")
+    })
   }
 }

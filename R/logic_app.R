@@ -53,17 +53,26 @@ get_devices_for_table_in_app <- function(devices, timezone) {
 
 ## structures ==================
 
+get_cached_structures_in_app <- function(core_ids) {
+  if (is_empty(core_ids)) {
+    return(NULL)
+  }
+  sdds_read_cached_trees_and_values() |>
+    filter(.data$coreid %in% core_ids)
+}
+
 # get the structures inside the app
 get_structures_in_app <- function(
-  core_ids,
+  structures,
   devices,
   timezone,
   additional_types,
   additional_converters
 ) {
-  sdds_read_cached_trees_and_values() |>
-    filter(.data$coreid %in% core_ids) |>
-    sdds_parse_trees_and_values() |>
+  if (is_empty(structures) || is_empty(devices)) {
+    return(NULL)
+  }
+  structures |>
     sdds_simplify_trees_and_values(
       devices = devices,
       timezone = timezone,
@@ -72,8 +81,18 @@ get_structures_in_app <- function(
     )
 }
 
+# get missing trees
+get_missing_trees_in_app <- function(structs) {
+  structs |>
+    filter(.data$tree |> purrr::map_lgl(is_null)) |>
+    mutate(
+      type_version = paste(.data$type, version_value_to_text(.data$version))
+    ) |>
+    slice_head(by = c("type", "version"), n = 1L)
+}
+
 # get structures table in app
-get_get_structures_for_table_in_app <- function(
+get_structures_for_table_in_app <- function(
   structs,
   show_system,
   show_hardware
@@ -124,26 +143,63 @@ simplify_device_info <- function(devices) {
   devices |> select(where(~ !is.list(.x)))
 }
 
+request_sdds_values_in_app <- function(devices, core_ids, token) {
+  devices |>
+    filter(.data$coreid %in% core_ids) |>
+    select("coreid", "name") |>
+    mutate(
+      success = .data$coreid |>
+        purrr::map_lgl(
+          ~ identical(
+            particle_request_sdds_values(.x, token = token)$return_value,
+            0L
+          )
+        )
+    )
+}
+
+request_sdds_trees_in_app <- function(devices, core_ids, token) {
+  devices |>
+    filter(.data$coreid %in% core_ids) |>
+    select("coreid", "name") |>
+    mutate(
+      success = .data$coreid |>
+        purrr::map_lgl(
+          ~ identical(
+            particle_request_sdds(.x, token = token)$return_value,
+            0L
+          )
+        )
+    )
+}
+
 ## stream events ============
 
+# stream events log in app
+get_stream_events_log_in_app <- function(core_ids) {
+  if (is_empty(core_ids)) {
+    return(NULL)
+  }
+  logs <- particle_stream_get_events_log()
+  if (nrow(logs) == 0) {
+    return(NULL)
+  }
+  logs |> filter(.data$coreid %in% core_ids)
+}
+
 # get streams events for app
-get_stream_events_for_app <- function(
+get_stream_events_in_app <- function(
+  logs,
   devices,
-  core_ids,
   timezone,
   prepare_for_table = FALSE
 ) {
-  if (is_empty(devices) || is_empty(core_ids)) {
+  if (is_empty(logs) || is_empty(devices)) {
     return(NULL)
   }
   events <-
-    particle_stream_get_events_log() |>
-    inner_join(
-      devices |>
-        filter(.data$coreid %in% !!core_ids) |>
-        select(c("coreid", "name")),
-      by = "coreid"
-    )
+    logs |>
+    left_join(devices |> select(c("coreid", "name")), by = "coreid")
   if (prepare_for_table) {
     events <- events |> prepare_stream_events_for_table(timezone = timezone)
   }
