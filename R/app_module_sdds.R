@@ -626,7 +626,7 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
       log_info(ns = ns, user_msg = msg)
       # safely send command
       out <- coreid[1] |>
-        particle_send_sdds_commands(cmds = cmds) |>
+        particle_send_sdds_commands(cmds = cmds, token = token) |>
         try_catch_cnds()
       if (nrow(out$conditions) > 0) {
         msg <- format_inline("could not send commands to {corename[1]}")
