@@ -546,7 +546,6 @@ sdds_server <- function(id, token, get_timezone, core_ids = NULL) {
     observeEvent(queue$table_complete(), {
       req(nrow(values$command_queue) > 0)
       ids <- values$command_queue |> filter(is.na(.data$status)) |> pull(row_id)
-      print(ids)
       if (!is_empty(ids)) {
         queue$select_rows(ids = ids)
       }
