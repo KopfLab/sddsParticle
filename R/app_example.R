@@ -20,9 +20,25 @@ sdds_run_gui <- function(
     if (shiny::in_devmode()) " in DEV mode"
   )
 
-  # minimalist ui
-  ui <- fluidPage(
-    title = "SDDS Particle GUI",
+  # minimalist example ui and server
+  ui <- example_ui(timezone = timezone)
+  server <- example_server(token = token)
+
+  # generate app
+  shinyApp(
+    ui = ui,
+    server = server,
+    # onstart required to read the particle stream!
+    onStart = sdds_onstart(token = token),
+    options = options,
+    enableBookmarking = enableBookmarking,
+    uiPattern = uiPattern
+  )
+}
+
+example_ui <- function(timezone) {
+  fluidPage(
+    title = paste0("SDDS Particle GUI v", packageVersion("sddsParticle")),
     sdds_header(),
     selectInput(
       "timezone",
@@ -33,19 +49,10 @@ sdds_run_gui <- function(
       shinydashboard::box(title = "Timezone"),
     sdds_ui("sdds")
   )
+}
 
-  # minimalist server
-  server <- function(input, output, session) {
+example_server <- function(token) {
+  function(input, output, session) {
     sdds_server("sdds", token, reactive(input$timezone))
   }
-
-  # generate app
-  shinyApp(
-    ui = ui,
-    server = server,
-    onStart = sdds_onstart(token = token),
-    options = options,
-    enableBookmarking = enableBookmarking,
-    uiPattern = uiPattern
-  )
 }
