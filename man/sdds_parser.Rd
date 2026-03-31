@@ -32,7 +32,9 @@ sdds_combine_tree_and_values(tree, values)
 sdds_simplify_trees_and_values(
   trees_and_values,
   devices,
-  timezone = Sys.timezone()
+  timezone = Sys.timezone(),
+  additional_types = list(),
+  additional_converters = list()
 )
 
 sdds_parse_command_log(json, timezone = Sys.timezone())

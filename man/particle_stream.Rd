@@ -11,7 +11,7 @@
 particle_stream_connect(
   endpoint = "events/sddsData",
   token = keyring::key_get("particle"),
-  log = FALSE,
+  log = TRUE,
   events_callback = "sdds_cache_events"
 )
 

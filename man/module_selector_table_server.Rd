@@ -12,6 +12,7 @@ module_selector_table_server(
   id_column,
   available_columns = list(dplyr::across(dplyr::everything(), identity)),
   visible_columns = c(),
+  container = NULL,
   allow_view_all = FALSE,
   page_lengths = list(c(5, 10, 20, 50, 100, if (allow_view_all) -1), c("5", "10", "20",
     "50", "100", if (allow_view_all) "All")),
@@ -19,7 +20,8 @@ module_selector_table_server(
   dom = "fltip",
   filter = c("none", "bottom", "top"),
   ordering = TRUE,
-  class = "cell-border stripe hover order-column",
+  class = "cell-border hover order-column",
+  escape_headers = TRUE,
   selection = c("multiple", "single", "none"),
   auto_reselect = TRUE,
   enable_dblclick = FALSE,
@@ -39,6 +41,8 @@ module_selector_table_server(
 
 \item{visible_columns}{integer vector of columns (from what the available_columns selects) that are visible when the table loads (can be changed with the table_columns_button action) - if empty, all columns are visible}
 
+\item{container}{the container defining the table html layout (passed on to DT::datatable)}
+
 \item{allow_view_all}{whether to allow the "all" option in the page lengths, default is FALSE}
 
 \item{page_lengths}{page length options, first one will be selected}
@@ -52,6 +56,8 @@ module_selector_table_server(
 \item{ordering}{whether to allow column sorting, default TRUE}
 
 \item{class}{styling of table see class parameter for datatable}
+
+\item{escape_headers}{whether to HTML escape headers (turn off to have HTML rendered in the header columns)}
 
 \item{selection}{see parameter for data table (none, single, multiple)}
 

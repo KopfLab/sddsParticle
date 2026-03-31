@@ -29,7 +29,7 @@ particle_send_sdds_commands(
 )
 }
 \arguments{
-\item{token}{particle access token (retrieved from keyring by default)}
+\item{token}{particle access token (retrieved from keyring by default), save a token in your keyring with particle_store_token()}
 
 \item{sdds_only}{whether to only return SDDS devices (default TRUE)}
 

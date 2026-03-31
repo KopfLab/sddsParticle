@@ -75,7 +75,7 @@ send_request <- function(
     return(out$result)
 }
 
-#' @param token particle access token (retrieved from keyring by default)
+#' @param token particle access token (retrieved from keyring by default), save a token in your keyring with particle_store_token()
 #' @param sdds_only whether to only return SDDS devices (default TRUE)
 #' @describeIn particle_api retrieve the particle SDDS devices registered to your account
 #' @export

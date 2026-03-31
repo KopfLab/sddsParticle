@@ -13,7 +13,7 @@ sdds_run_gui(
 )
 }
 \arguments{
-\item{token}{particle access token (retrieved from keyring by default)}
+\item{token}{particle access token (retrieved from keyring by default), save a token in your keyring with particle_store_token()}
 
 \item{timezone}{the timezone to user for datetime calculations}
 
@@ -34,5 +34,5 @@ any previous calls to  \code{\link[shiny:enableBookmarking]{enableBookmarking()}
 for more information on bookmarking your app.}
 }
 \description{
-This function runs the user interface for the sdds particle device controller.
+This function runs a simple example GUI that uses the sdds particle device controller modulre.
 }

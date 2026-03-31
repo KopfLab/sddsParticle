@@ -1,6 +1,6 @@
 Package: sddsParticle
 Title: Control SDDS Particle Devices
-Version: 0.1.0.9000
+Version: 0.1.1.9000
 Authors@R: 
     person("Sebastian", "Kopf", , "seb.kopf@gmail.com", role = c("aut", "cre"))
 Description: This package provides a control GUI for self-describing data structures (SDDS) run on Particle devices.
@@ -24,16 +24,16 @@ Imports:
     stringr,
     lubridate,
     digest,
-    shiny,
-    DT,
-    rlog,
     htmltools,
+    shiny,
     shinydashboard,
-    shinytoastr,
     shinyjs,
+    shinytoastr,
     shinycssloaders,
-    shinyAce,
-    prompter
+    rlog,
+    prompter,
+    DT,
+    shinyAce
 Suggests: 
     testthat (>= 3.0.0)
 Config/testthat/edition: 3

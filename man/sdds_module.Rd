@@ -2,20 +2,23 @@
 % Please edit documentation in R/app_module_sdds.R
 \name{sdds_ui}
 \alias{sdds_ui}
+\alias{sdds_header}
 \alias{sdds_server}
 \alias{sdds_onstart}
 \title{sdds GUI module}
 \usage{
 sdds_ui(id)
 
-sdds_server(id, token, timezone, core_ids = NULL)
+sdds_header()
+
+sdds_server(id, token, get_timezone, core_ids = NULL)
 
 sdds_onstart(token)
 }
 \arguments{
 \item{id}{module id}
 
-\item{token}{particle access token (retrieved from keyring by default)}
+\item{token}{particle access token (retrieved from keyring by default), save a token in your keyring with particle_store_token()}
 }
 \description{
 SDDS shiny Module.
@@ -23,6 +26,8 @@ SDDS shiny Module.
 \section{Functions}{
 \itemize{
 \item \code{sdds_ui()}: generates the ui for the sdds module
+
+\item \code{sdds_header()}: call in ui head to include
 
 \item \code{sdds_server()}: generates the server for the sdds module
 
