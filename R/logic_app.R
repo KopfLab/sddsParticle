@@ -22,13 +22,21 @@ get_devices_in_app <- function(token, core_ids) {
       devices |> readr::write_csv("cache/sdds_devices.csv")
     }
   }
-  # if only specific coreids are allowed --> filter for them
+
+  # make last heards into datetime
+  devices <- devices |>
+    mutate(last_heard = lubridate::ymd_hms(.data$last_heard, tz = "UTC")) |>
+    arrange(.data$name)
+  return(devices)
+}
+
+# get filtered devices in app
+get_filtered_devices_in_app <- function(devices, core_ids) {
+  # filter for specific core ids
   if (!is.null(core_ids)) {
-    devices <- devices |> filter(.data$id %in% core_ids)
+    devices <- devices |> filter(.data$coreid %in% core_ids)
   }
-  # subselect info
-  devices |>
-    mutate(last_heard = lubridate::ymd_hms(.data$last_heard, tz = "UTC"))
+  return(devices)
 }
 
 # get devices for table in app

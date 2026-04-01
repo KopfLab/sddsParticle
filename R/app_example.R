@@ -37,22 +37,29 @@ sdds_run_gui <- function(
 }
 
 example_ui <- function(timezone) {
-  fluidPage(
-    title = paste0("SDDS Particle GUI v", packageVersion("sddsParticle")),
-    sdds_header(),
-    selectInput(
-      "timezone",
-      label = NULL,
-      choices = OlsonNames(),
-      selected = timezone
-    ) |>
-      shinydashboard::box(title = "Timezone"),
-    sdds_ui("sdds")
-  )
+  # ui function
+  function(request) {
+    fluidPage(
+      title = paste0("SDDS Particle GUI v", packageVersion("sddsParticle")),
+      sdds_header(),
+      selectInput(
+        "timezone",
+        label = NULL,
+        choices = OlsonNames(),
+        selected = timezone
+      ) |>
+        shinydashboard::box(title = "Timezone"),
+      sdds_ui(
+        "sdds",
+        device_list_title = "My devices"
+      )
+    )
+  }
 }
 
 example_server <- function(token) {
+  # server function
   function(input, output, session) {
-    sdds_server("sdds", token, reactive(input$timezone))
+    sdds_server("sdds", token, timezone = reactive(input$timezone))
   }
 }

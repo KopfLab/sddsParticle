@@ -28,19 +28,47 @@ value_null_input <- function(id) {
 value_integer_input <- function(id) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
-    # required function definitions
+    # keeping track of values
+    # FIXME: put this into a base module that abstracts almost all of this except the type specific stuff
+    values <- reactiveValues(
+      active_coreids = character(),
+      original_values = list()
+    )
+    reset <- function() {
+      values$active_coreids = character()
+      values$original_values = list()
+    }
+    get_input_values <- reactive({
+      values$active_coreids |>
+        purrr::map(~ input[[.x]]) |>
+        set_names(values$active_coreids)
+    })
+    observeEvent(get_input_values(), {
+      message("NEW VALUES")
+      print(get_input_values()) # DEBUG
+      # FIXME: build auto-correction for invalid values
+    })
+    # standard functions
     value_to_text <- integer_value_to_text
     get_value <- function(coreid) input[[coreid]]
     get_text <- function(coreid, units = NA_character_) {
       get_value(coreid) |> value_to_text(units)
     }
     generate_ui <- function(coreid, label, value, units, ...) {
-      # TODO: consider integer validation here
+      if (!coreid %in% values$active_coreids) {
+        values$active_coreids <- c(values$active_coreids, coreid)
+      }
+      values$original_values[[coreid]] <- value
+
+      print(values$active_coreids) # DEBUG
+      print(values$original_values) # DEBUG
+
       widget <- numericInput(ns(coreid), label = NULL, value = value, step = 1)
       generate_standard_input_row(label, widget, units)
     }
     # standard return value with the functions
     list(
+      reset = reset,
       generate_ui = generate_ui,
       value_to_text = value_to_text,
       get_value = get_value,

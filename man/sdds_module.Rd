@@ -7,18 +7,30 @@
 \alias{sdds_onstart}
 \title{sdds GUI module}
 \usage{
-sdds_ui(id)
+sdds_ui(id, device_list_title = "Devices", enable_add_remove_devices = TRUE)
 
 sdds_header()
 
-sdds_server(id, token, get_timezone, core_ids = NULL)
+sdds_server(
+  id,
+  token,
+  timezone = Sys.timezone(),
+  accessible_core_ids = NULL,
+  listed_core_ids = NULL
+)
 
 sdds_onstart(token)
 }
 \arguments{
 \item{id}{module id}
 
+\item{enable_add_remove_devices}{whether to let devices be added and removed}
+
 \item{token}{particle access token (retrieved from keyring by default), save a token in your keyring with particle_store_token()}
+
+\item{accessible_core_ids}{the particle devices that should be accessible}
+
+\item{listed_core_ids}{the core ids that should be listed, if anything but NULL is provided, leads to the add/remove interface being enabled}
 }
 \description{
 SDDS shiny Module.

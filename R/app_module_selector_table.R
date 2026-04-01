@@ -636,6 +636,10 @@ module_selector_table_server <- function(
   # return functions =====
   list(
     select_rows = select_rows,
+    has_data = has_data,
+    get_all_ids = reactive({
+      values$all_ids
+    }),
     get_selected_ids = get_selected_ids,
     get_selected_cells = get_selected_cells,
     get_selected_items = get_selected_items,
