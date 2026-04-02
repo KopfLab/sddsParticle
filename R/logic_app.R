@@ -47,10 +47,13 @@ get_devices_for_table_in_app <- function(devices, timezone) {
         lubridate::with_tz(timezone) |>
         format("%b %d %Y %H:%M:%S")
     ) |>
-
+    left_join(sdds_read_cached_trees_and_values(), by = "coreid") |>
+    mutate(version = version_value_to_text(.data$version)) |>
     select(
       "coreid",
       Name = "name",
+      Type = "type",
+      Version = "version",
       `Last heard from` = "last_heard",
       Connected = "connected",
       Status = "status",
