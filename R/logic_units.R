@@ -32,7 +32,14 @@ enum_value_to_text <- function(value, ...) as.character(value)
 
 version_value_to_text <- function(value, ...) {
   value <- as.integer(value)
-  sprintf("%d.%d.%d", value %/% 10000, value %% 10000 %/% 100, value %% 100)
+  text <- sprintf(
+    "%d.%d.%d",
+    value %/% 10000,
+    value %% 10000 %/% 100,
+    value %% 100
+  )
+  text[is.na(value)] <- NA_character_
+  return(text)
 }
 
 # complex units converters ======
