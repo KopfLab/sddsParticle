@@ -587,7 +587,8 @@ sdds_server <- function(
     edit_modules <- list(
       "null" = value_null_input("null"),
       "integer" = value_integer_input("integer"),
-      "enum" = value_enum_input("enum")
+      "enum" = value_enum_input("enum"),
+      "text" = value_text_input("text")
     )
 
     # editing modal dialog
@@ -683,11 +684,10 @@ sdds_server <- function(
 
     # check if there are any changes
     observe({
-      # req(edit_modal_widgets())
-      # has_changes <- purrr::map_lgl(edit_modules, ~ .x$has_changes())
-      # message("TOGGLE ", any(has_changes))
-      # shinyjs::toggleState("send_now", condition = any(has_changes))
-      # shinyjs::toggleState("add_to_queue", condition = any(has_changes))
+      req(edit_modal_widgets())
+      has_changes <- purrr::map_lgl(edit_modules, ~ .x$has_changes())
+      shinyjs::toggleState("send_now", condition = any(has_changes))
+      shinyjs::toggleState("add_to_queue", condition = any(has_changes))
     })
 
     # send right away
