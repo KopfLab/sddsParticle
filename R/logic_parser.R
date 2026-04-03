@@ -440,7 +440,8 @@ sdds_combine_tree_and_values <- function(tree, values) {
       v_valid = .data$v_missing |
         .data$is_struct |
         .data$is_null |
-        (.data$is_int & !is.na(.data$v_int)) |
+        # allow double in case integer overflows (r doesn't have unsigned int64)
+        (.data$is_int & (!is.na(.data$v_int) | !is.na(.data$v_dbl))) |
         (.data$is_dbl & !is.na(.data$v_dbl)) |
         (.data$is_text & !is.na(.data$v_text)) |
         (.data$is_enum & !is.na(.data$v_int) & !is.na(.data$v_enum)),
@@ -513,9 +514,7 @@ sdds_simplify_trees_and_values <- function(
     "null" = expr(.data$v_missing | !.data$v_valid),
     "enum" = expr(.data$is_enum),
     "var_interval" = expr(.data$is_var_interval),
-    "duration" = expr(
-      .data$base_units %in% c("ms", "sec", "min", "hour", "day")
-    ),
+    "duration" = expr(.data$base_units %in% names(.duration_converter)),
     "version" = expr(.data$is_int & .data$name == "version"),
     "integer" = expr(.data$is_int),
     "double" = expr(.data$is_dbl),
@@ -598,7 +597,9 @@ sdds_simplify_trees_and_values <- function(
       value = dplyr::case_when(
         .data$v_missing | !.data$v_valid | .data$is_struct ~ list(NULL),
         .data$is_enum ~ as.list(.data$v_enum),
-        .data$is_int ~ as.list(.data$v_int),
+        .data$is_int & !is.na(.data$v_int) ~ as.list(.data$v_int),
+        # account for unsigned int64 from microcontroller (R cannot do that)
+        .data$is_int & is.na(.data$v_int) ~ as.list(.data$v_dbl),
         .data$is_dbl ~ as.list(.data$v_dbl),
         TRUE ~ as.list(.data$v_text)
       ),

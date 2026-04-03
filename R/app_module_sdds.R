@@ -589,7 +589,8 @@ sdds_server <- function(
       "integer" = value_integer_input("integer"),
       "double" = value_double_input("double"),
       "enum" = value_enum_input("enum"),
-      "text" = value_text_input("text")
+      "text" = value_text_input("text"),
+      "duration" = value_duration_input("duration")
     )
 
     # editing modal dialog

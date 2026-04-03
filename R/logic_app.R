@@ -336,7 +336,7 @@ update_command_queue_entries_in_app <- function(
       command = purrr::map2_chr(
         .data$path,
         .data$new_value,
-        ~ sprintf("%s=%s", .x, as.character(.y))
+        ~ sprintf("%s=%s", .x, format(.y, scientific = FALSE))
       ),
       status = NA_character_
     )

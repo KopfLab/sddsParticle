@@ -44,6 +44,56 @@ version_value_to_text <- function(value, ...) {
 
 # complex units converters ======
 
+duration_value_to_seconds <- function(value, units) {
+  switch(
+    units,
+    ms = lubridate::milliseconds(value),
+    sec = value,
+    min = value * 60L,
+    hour = value * 3600L,
+    day = value * 86400L,
+    cli_abort("Unknown units {.field {units}}")
+  )
+}
+
+.duration_converter <- list(
+  ms = lubridate::milliseconds,
+  sec = lubridate::seconds,
+  min = lubridate::minutes,
+  hour = lubridate::hours,
+  day = lubridate::days
+)
+
+duration_to_largest_whole_unit <- function(value, units) {
+  out <- purrr::map2(
+    value,
+    units,
+    ~ {
+      value <- .x
+      units <- .y
+      if (!units %in% names(.duration_converter)) {
+        cli_abort("Unknown units {.field {units}}")
+      }
+      secs <- .duration_converter[[units]](value) |> as.numeric("sec")
+      if (near(secs %% 86400L, 0)) {
+        list(v = secs %/% 86400L, u = "day")
+      } else if (near(secs %% 3600L, 0)) {
+        list(v = secs %/% 3600L, u = "hour")
+      } else if (near(secs %% 60L, 0)) {
+        list(v = secs %/% 60L, u = "min")
+      } else if (near(secs %% 1L, 0)) {
+        list(v = secs, u = "sec")
+      } else {
+        list(v = secs * 1000, u = "ms")
+      }
+    }
+  )
+  if (length(value) == 1L && length(units) == 1L) {
+    return(out[[1]])
+  }
+  return(out)
+}
+
 duration_value_to_text <- function(value, units) {
   purrr::map2_chr(
     value,
@@ -51,28 +101,22 @@ duration_value_to_text <- function(value, units) {
     ~ {
       value <- .x
       units <- .y
-      secs <- switch(
-        units,
-        ms = value / 1000,
-        sec = value,
-        min = value * 60,
-        hour = value * 3600,
-        day = value * 86400,
+      if (!units %in% names(.duration_converter)) {
         cli_abort("Unknown units {.field {units}}")
-      )
-
+      }
+      secs <- .duration_converter[[units]](value) |> as.numeric("sec")
       if (secs < 1) {
         return(paste0(secs * 1000, " ms"))
       }
 
-      days <- secs %/% 86400
-      secs <- secs %% 86400
+      days <- secs %/% 86400L
+      secs <- secs %% 86400L
 
-      hours <- secs %/% 3600
-      secs <- secs %% 3600
+      hours <- secs %/% 3600L
+      secs <- secs %% 3600L
 
-      mins <- secs %/% 60
-      secs <- secs %% 60
+      mins <- secs %/% 60L
+      secs <- secs %% 60L
 
       parts <- c(
         if (days >= 2) paste0(days, " days"),
@@ -81,8 +125,8 @@ duration_value_to_text <- function(value, units) {
         if (hours > 0 && hours < 2) paste0(hours, " hour"),
         if (mins >= 2) paste0(mins, " mins"),
         if (mins > 0 && mins < 2) paste0(mins, " min"),
-        if (secs >= 2) paste0(secs, " secs"),
-        if (secs > 0 && secs < 2) paste0(secs, " sec")
+        if (secs >= 2) paste0(round(secs, 2), " secs"),
+        if (secs > 0 && secs < 2) paste0(round(secs, 2), " sec")
       )
 
       paste(parts, collapse = " ")
