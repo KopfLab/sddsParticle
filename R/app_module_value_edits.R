@@ -32,6 +32,7 @@ input_module <- function(
   input_to_value = function(input) return(input),
   value_to_input = function(value) return(value),
   correct_input = function(input) return(input),
+  compare_input = function(input1, input2) identical(input1, input2),
   update_input = function(session, id, input) {},
   flag_input_changed = function(id) add_value_changed_class_to_input(id)
 ) {
@@ -43,6 +44,7 @@ input_module <- function(
     is_function(input_to_value),
     is_function(value_to_input),
     is_function(correct_input),
+    is_function(compare_input),
     is_function(update_input),
     is_function(flag_input_changed)
   )
@@ -164,7 +166,9 @@ input_module <- function(
 
     # flag inputs if they have changed (based on corrected value)
     flag_changed_inputs <- function(coreid, corrected) {
-      if (!is.null(corrected) && !identical(rv$original[[coreid]], corrected)) {
+      if (
+        !is.null(corrected) && !compare_input(rv$original[[coreid]], corrected)
+      ) {
         flag_input_first_time(coreid)
       }
     }
@@ -280,6 +284,22 @@ value_integer_input <- function(id) {
       }
       return(input)
     },
+    update_input = function(session, id, input) {
+      updateNumericInput(session, id, value = input)
+    }
+  )
+}
+
+# double input
+value_double_input <- function(id) {
+  input_module(
+    id = id,
+    value_to_text = double_value_to_text,
+    make_gui = function(id, label, value, units, ...) {
+      widget <- numericInput(inputId = id, label = NULL, value = value)
+      generate_standard_input_row(label, widget, units)
+    },
+    compare_input = function(input1, input2) near(input1, input2),
     update_input = function(session, id, input) {
       updateNumericInput(session, id, value = input)
     }

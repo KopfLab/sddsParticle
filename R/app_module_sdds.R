@@ -587,6 +587,7 @@ sdds_server <- function(
     edit_modules <- list(
       "null" = value_null_input("null"),
       "integer" = value_integer_input("integer"),
+      "double" = value_double_input("double"),
       "enum" = value_enum_input("enum"),
       "text" = value_text_input("text")
     )

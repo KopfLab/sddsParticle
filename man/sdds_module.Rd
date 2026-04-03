@@ -7,7 +7,7 @@
 \alias{sdds_onstart}
 \title{sdds GUI module}
 \usage{
-sdds_ui(id, device_list_title = "Devices", enable_add_remove_devices = TRUE)
+sdds_ui(id, device_list_title = "Devices", enable_add_remove_devices = FALSE)
 
 sdds_header()
 
