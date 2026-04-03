@@ -715,12 +715,8 @@ sdds_server <- function(
       purrr::walk(edit_modules, ~ .x$copy_input())
     })
 
-    # send right away
-
-    # don't send but add to queue
-    observeEvent(input$add_to_queue, {
-      req(nrow(values$edit_structure) > 0)
-
+    # add to command queue, returns the row_ids of the new commands
+    add_to_queue <- function() {
       # safely prepare new values
       out <-
         values$edit_structure |>
@@ -738,6 +734,10 @@ sdds_server <- function(
       }
 
       # update values
+      old_cmds <- c()
+      if (nrow(values$command_queue) > 0) {
+        old_cmds <- values$command_queue$row_id
+      }
       out <-
         update_command_queue_entries_in_app(
           existing_queue = isolate(values$command_queue),
@@ -745,9 +745,33 @@ sdds_server <- function(
         ) |>
         try_catch_cnds()
       out |> log_cnds(ns = ns)
-      if (!is.null(out$result)) {
-        values$command_queue <- out$result
+
+      # did it fail?
+      if (is.null(out$result)) {
+        return(c())
       }
+
+      # unselect row
+      structures$select_rows(c())
+
+      # success
+      values$command_queue <- out$result
+
+      # return new row ids
+      return(setdiff(values$command_queue$row_id, old_cmds))
+    }
+
+    # send right away
+    observeEvent(input$send_now, {
+      req(nrow(values$edit_structure) > 0)
+      new_cmds <- add_to_queue()
+      send_queue_commands(new_cmds)
+    })
+
+    # don't send but add to queue
+    observeEvent(input$add_to_queue, {
+      req(nrow(values$edit_structure) > 0)
+      add_to_queue()
     })
 
     # send commands queue =========
@@ -767,7 +791,8 @@ sdds_server <- function(
           "Value" = "new_text",
           "Command" = "command",
           "Status" = "status"
-        )
+        ) |>
+        arrange(desc(row_id))
     })
 
     ## disable/enable send button in structures
@@ -869,7 +894,7 @@ sdds_server <- function(
       ordering = FALSE
     )
 
-    ## function to send the commands to one
+    ## function to send the commands to one core
     send_commands <- function(coreid, corename, cmds) {
       msg <- format_inline(
         "Sending {length(cmds)} command{?s} to {corename[1]}"
