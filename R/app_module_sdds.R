@@ -144,7 +144,18 @@ sdds_header <- function() {
     shinyjs::useShinyjs(), # enable shinyjs
     shinytoastr::useToastr(), # enable toaster
     prompter::use_prompt(), # enable prompter
-    use_app_utils() # enable app utils
+    use_app_utils(), # enable app utils
+    tags$style(HTML(
+      "
+      .value-changed input,
+      .value-changed select,
+      .value-changed .selectize-input {
+        background-color: #d4edda !important;
+        border-color: #28a745 !important;
+        box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+      }
+      "
+    ))
   )
 }
 
@@ -579,49 +590,23 @@ sdds_server <- function(
       "enum" = value_enum_input("enum")
     )
 
-    # trigger modal dialog
-    observeEvent(structures$get_selected_ids(), {
-      req(structures$get_selected_ids())
-      path <- structures$get_selected_ids()
-
-      # safely call function
-      out <- get_structures() |>
-        get_structures_for_path_in_app(path = path) |>
-        try_catch_cnds()
-      out |> log_cnds(ns = ns)
-      structure <- out$result
-      if (is.null(structure)) {
-        return()
-      }
-
-      # read only?
-      if (all(structure$readonly)) {
-        values$edit_structure <- tibble()
-        log_info(
-          ns = ns,
-          user_msg = sprintf("Control structure '%s' is read-only", path)
-        )
-        return()
-      }
-
-      # keep track of edit structure
-      values$edit_structure <- structure
-
-      # safely generate edit ui fields
-      out <- structure |>
-        prepare_edit_ui_in_app(edit_modules = edit_modules) |>
-        try_catch_cnds()
-      out |> log_cnds(ns = ns)
-      edit_ui <- out$result
-      if (is.null(edit_ui)) {
-        return()
-      }
-
-      # generate modal diaolog
+    # editing modal dialog
+    edit_modal_widgets <- reactiveVal()
+    edit_modal <-
       modalDialog(
-        title = h3(path),
-        edit_ui,
+        title = h3(textOutput(ns("edit_path"))),
+        uiOutput(ns("edit_widgets")),
         footer = tagList(
+          actionButton(
+            ns("send_now"),
+            "Send now",
+            icon = icon("paper-plane"),
+            style = "border: 0;"
+          ) |>
+            add_tooltip(
+              "Send the commands for the values highlighted in green right now."
+            ) |>
+            shinyjs::disabled(),
           actionButton(
             ns("add_to_queue"),
             "Add to queue",
@@ -629,17 +614,85 @@ sdds_server <- function(
             style = "border: 0;"
           ) |>
             add_tooltip(
-              "Don't send now but add the change(s) to the command queue (click Send queue to send to devices)."
-            ),
+              "Don't send now but add the commands for the values highlighted in green to the command queue (click 'Send queue' to send to devices)."
+            ) |>
+            shinyjs::disabled(),
           modalButton("Cancel")
         ),
         size = "m",
         easyClose = TRUE
-      ) |>
-        showModal()
+      )
+    output$edit_path <- renderText({
+      req(structures$get_selected_ids())
+      structures$get_selected_ids()
+    })
+    output$edit_widgets <- renderUI({
+      req(edit_modal_widgets())
+      edit_modal_widgets()
     })
 
-    # save edits
+    # trigger generation of the edit widgets (requires unique ids each time it's recreate to manage observers)
+    modal_session_id <- reactiveVal(0)
+    observeEvent(
+      structures$get_selected_ids(),
+      {
+        req(structures$get_selected_ids())
+        path <- structures$get_selected_ids()
+
+        # safely call function
+        out <- get_structures() |>
+          get_structures_for_path_in_app(path = path) |>
+          try_catch_cnds()
+        out |> log_cnds(ns = ns)
+        structure <- out$result
+        if (is.null(structure)) {
+          return()
+        }
+
+        # read only?
+        if (all(structure$readonly)) {
+          values$edit_structure <- tibble()
+          log_info(
+            ns = ns,
+            user_msg = sprintf("'%s' is read-only", path)
+          )
+          return()
+        }
+
+        # keep track of edit structure
+        values$edit_structure <- structure
+
+        # safely generate edit ui fields
+        modal_session_id(modal_session_id() + 1)
+        out <- structure |>
+          prepare_edit_ui_in_app(
+            gui_id = modal_session_id(),
+            edit_modules = edit_modules
+          ) |>
+          try_catch_cnds()
+        out |> log_cnds(ns = ns)
+        if (is.null(out$result)) {
+          return()
+        }
+
+        # assign widgets
+        edit_modal_widgets(out$result)
+        edit_modal |> showModal()
+      }
+    )
+
+    # check if there are any changes
+    observe({
+      # req(edit_modal_widgets())
+      # has_changes <- purrr::map_lgl(edit_modules, ~ .x$has_changes())
+      # message("TOGGLE ", any(has_changes))
+      # shinyjs::toggleState("send_now", condition = any(has_changes))
+      # shinyjs::toggleState("add_to_queue", condition = any(has_changes))
+    })
+
+    # send right away
+
+    # don't send but add to queue
     observeEvent(input$add_to_queue, {
       req(nrow(values$edit_structure) > 0)
 
@@ -686,8 +739,7 @@ sdds_server <- function(
           "coreid",
           "Device" = "corename",
           "Attribute" = "path",
-          "Previous value" = "text",
-          "New value" = "new_text",
+          "Value" = "new_text",
           "Command" = "command",
           "Status" = "status"
         )
@@ -808,17 +860,26 @@ sdds_server <- function(
         out |> log_cnds(ns = ns)
         return(rep(FALSE, length(cmds)))
       }
+      # info about successful commands
+      if (all(out$result$success)) {
+        msg <- format_inline(
+          "{qty(length(cmds))}The command{?s} {?was/were} successfully received by {corename[1]}"
+        )
+        log_success(ns = ns, user_msg = msg)
+      } else {
+        msg <- format_inline(
+          "{sum(!out$result$success)}/{length(cmds)} commands were NOT successfully received by {corename[1]}"
+        )
+        log_warning(ns = ns, user_msg = msg)
+      }
       return(out$result$success)
     }
 
-    ## send the commands
-    observeEvent(input$send_queue_now, {
-      req(nrow(values$command_queue) > 0)
-      req(queue$get_selected_ids())
-
+    ## send commands
+    send_queue_commands <- function(row_ids) {
       # fetch commands to send
       cmds_to_send <- values$command_queue |>
-        filter(.data$row_id %in% queue$get_selected_ids())
+        filter(.data$row_id %in% !!row_ids)
 
       # send commands (done safely for each to catch individual errors)
       cmds_results <- cmds_to_send |>
@@ -837,6 +898,18 @@ sdds_server <- function(
       if (!is.null(out$result)) {
         values$command_queue <- out$result
       }
+    }
+
+    ## send the commands from the queue
+    observeEvent(input$send_queue_now, {
+      req(nrow(values$command_queue) > 0)
+      req(queue$get_selected_ids())
+
+      # send selected commands from the queue
+      queue$get_selected_ids() |> send_queue_commands()
+
+      # remove queue selection
+      queue$select_rows(c())
     })
 
     # events stream ============

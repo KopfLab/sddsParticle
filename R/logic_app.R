@@ -255,8 +255,11 @@ get_structures_for_path_in_app <- function(structures, path) {
   structures |> filter(.data$path == !!path)
 }
 
-prepare_edit_ui_in_app <- function(structure, edit_modules) {
-  structure |>
+prepare_edit_ui_in_app <- function(structure, gui_id, edit_modules) {
+  # reset modules
+  edit_modules |> purrr::walk(~ .x$reset())
+  # generate widgets
+  widgets <- structure |>
     mutate(
       ui = purrr::pmap(
         list(
@@ -275,6 +278,7 @@ prepare_edit_ui_in_app <- function(structure, edit_modules) {
             ))
           }
           return(edit_modules[[type]]$generate_ui(
+            gui_id = gui_id,
             coreid = coreid,
             label = label,
             value = value,
@@ -286,6 +290,9 @@ prepare_edit_ui_in_app <- function(structure, edit_modules) {
     ) |>
     pull(.data$ui) |>
     tagList()
+  # activate modules
+  edit_modules |> purrr::walk(~ .x$activate())
+  return(widgets)
 }
 
 prepare_new_values_in_app <- function(structure, edit_modules) {
@@ -300,6 +307,10 @@ prepare_new_values_in_app <- function(structure, edit_modules) {
           return(edit_modules[[type]]$get_value(coreid))
         }
       ),
+      has_changed = !purrr::map_lgl(.data$new_value, is.null)
+    ) |>
+    filter(.data$has_changed) |>
+    mutate(
       new_text = purrr::pmap_chr(
         list(
           type = .data$type,
@@ -312,14 +323,8 @@ prepare_new_values_in_app <- function(structure, edit_modules) {
           }
           return(edit_modules[[type]]$get_text(coreid, units))
         }
-      ),
-      has_changed = purrr::map2_lgl(
-        value,
-        new_value,
-        ~ !is.null(.y) & !identical(.x, .y)
       )
-    ) |>
-    filter(.data$has_changed)
+    )
 }
 
 update_command_queue_entries_in_app <- function(
