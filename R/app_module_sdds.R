@@ -599,6 +599,16 @@ sdds_server <- function(
         uiOutput(ns("edit_widgets")),
         footer = tagList(
           actionButton(
+            ns("copy_to_all"),
+            "Copy to all",
+            icon = icon("copy"),
+            style = "border: 0"
+          ) |>
+            add_tooltip(
+              "Copy the topmost changed value (highlighted in green) to all inputs."
+            ) |>
+            shinyjs::disabled(),
+          actionButton(
             ns("send_now"),
             "Send now",
             icon = icon("paper-plane"),
@@ -611,7 +621,7 @@ sdds_server <- function(
           actionButton(
             ns("add_to_queue"),
             "Add to queue",
-            icon = icon("save"),
+            icon = icon("layer-group"),
             style = "border: 0;"
           ) |>
             add_tooltip(
@@ -686,8 +696,23 @@ sdds_server <- function(
     observe({
       req(edit_modal_widgets())
       has_changes <- purrr::map_lgl(edit_modules, ~ .x$has_changes())
+      shinyjs::toggleState("copy_to_all", condition = any(has_changes))
       shinyjs::toggleState("send_now", condition = any(has_changes))
       shinyjs::toggleState("add_to_queue", condition = any(has_changes))
+    })
+
+    # whether to show the copy to all button
+    observeEvent(values$edit_structure, {
+      shinyjs::toggle(
+        "copy_to_all",
+        condition = nrow(values$edit_structure) > 1
+      )
+    })
+
+    # copy to all event
+    observeEvent(input$copy_to_all, {
+      req(edit_modal_widgets())
+      purrr::walk(edit_modules, ~ .x$copy_input())
     })
 
     # send right away

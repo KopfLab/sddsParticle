@@ -27,12 +27,12 @@ generate_standard_input_row <- function(label, widget, units = NA_character_) {
 input_module <- function(
   id,
   value_to_text,
-  make_gui,
+  make_gui = function(...) {},
   fetch_input = function(ui_inputs, id) return(ui_inputs[[id]]),
   input_to_value = function(input) return(input),
   value_to_input = function(value) return(value),
   correct_input = function(input) return(input),
-  update_input = function(input) {},
+  update_input = function(session, id, input) {},
   flag_input_changed = function(id) add_value_changed_class_to_input(id)
 ) {
   # safety checks
@@ -94,11 +94,6 @@ input_module <- function(
       any(rv$changed)
     })
 
-    # set the input for the core id from a value
-    set_value <- function(value) {
-      input <- value_to_input(value)
-    }
-
     # return the input value for the core id
     get_input <- function(coreid) rv$inputs[[coreid]]
 
@@ -120,23 +115,58 @@ input_module <- function(
       value_to_text(value = value, units = units)
     }
 
+    # copy input from one coreid to all others
+    # unless core id is supplied, copies from the first one that has changes
+    copy_input <- function(from_coreid = NULL) {
+      if (!is.null(from_coreid) || has_changed_inputs()) {
+        if (is.null(from_coreid)) {
+          from_coreid <- names(rv$changed)[rv$changed][1]
+        }
+        from_input <- get_input(from_coreid)
+        if (!is.null(from_input)) {
+          # make the updates
+          purrr::walk(
+            rv$coreids,
+            ~ if (.x != from_coreid) {
+              # update
+              update_input(
+                session = session,
+                id = uid(rv$gui_id, .x),
+                input = from_input
+              )
+              # flag as changed
+              flag_input_first_time(.x)
+            }
+          )
+        }
+      }
+    }
+
     # update inputs if they are incorrect
     update_incorrect_inputs <- function(coreid, input, corrected) {
       if (!identical(input, corrected)) {
-        update_input(id = uid(rv$gui_id, coreid), input = corrected)
+        update_input(
+          session = session,
+          id = uid(rv$gui_id, coreid),
+          input = corrected
+        )
+      }
+    }
+
+    # flag only first time
+    flag_input_first_time <- function(coreid) {
+      if (!rv$changed[[coreid]]) {
+        # first time change --> flag
+        flag_input_changed(ns(uid(rv$gui_id, coreid)))
+        rv$changed[[coreid]] <- TRUE
       }
     }
 
     # flag inputs if they have changed (based on corrected value)
     flag_changed_inputs <- function(coreid, corrected) {
-      is_changed <- rv$changed[[coreid]] ||
-        (!is.null(corrected) && !identical(rv$original[[coreid]], corrected))
-      if (!rv$changed[[coreid]] && is_changed) {
-        # first time change --> flag
-        log_debug(ns = ns, coreid, " has changed")
-        flag_input_changed(ns(uid(rv$gui_id, coreid)))
+      if (!is.null(corrected) && !identical(rv$original[[coreid]], corrected)) {
+        flag_input_first_time(coreid)
       }
-      return(is_changed)
     }
 
     # monitor inputs
@@ -155,12 +185,11 @@ input_module <- function(
         update_incorrect_inputs
       )
 
-      # figure out if value has changed
-      rv$changed <- purrr::pmap_lgl(
+      # figure out if value has changed and flag them if so
+      purrr::pwalk(
         list(rv$coreids, corrected_inputs),
         flag_changed_inputs
-      ) |>
-        set_names(rv$coreids)
+      )
     })
 
     # generate the edit user interface
@@ -195,7 +224,8 @@ input_module <- function(
       has_changes = has_changed_inputs,
       value_to_text = value_to_text,
       get_value = get_value,
-      get_text = get_text
+      get_text = get_text,
+      copy_input = copy_input
     )
   })
 }
@@ -224,8 +254,8 @@ value_text_input <- function(id) {
       )
       generate_standard_input_row(label, widget, units)
     },
-    update_input = function(id, input) {
-      updateTextInput(inputId = id, value = input)
+    update_input = function(session, id, input) {
+      updateTextInput(session, id, value = input)
     }
   )
 }
@@ -250,8 +280,8 @@ value_integer_input <- function(id) {
       }
       return(input)
     },
-    update_input = function(id, input) {
-      updateNumericInput(inputId = id, value = input)
+    update_input = function(session, id, input) {
+      updateNumericInput(session, id, value = input)
     }
   )
 }
@@ -270,8 +300,8 @@ value_enum_input <- function(id) {
       )
       generate_standard_input_row(label, widget)
     },
-    update_input = function(id, input) {
-      updateSelectInput(inputId = id, selected = input)
+    update_input = function(session, id, input) {
+      updateSelectInput(session, id, selected = input)
     }
   )
 }
