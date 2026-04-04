@@ -514,6 +514,7 @@ sdds_simplify_trees_and_values <- function(
     "null" = expr(.data$v_missing | !.data$v_valid),
     "enum" = expr(.data$is_enum),
     "var_interval" = expr(.data$is_var_interval),
+    "datetime" = expr(.data$base_units == "dt"),
     "duration" = expr(.data$base_units %in% names(.duration_converter)),
     "version" = expr(.data$is_int & .data$name == "version"),
     "integer" = expr(.data$is_int),
@@ -530,6 +531,11 @@ sdds_simplify_trees_and_values <- function(
     "null" = null_value_to_text,
     "enum" = enum_value_to_text,
     "var_interval" = var_intervals_value_to_text,
+    "datetime" = function(value, ...) {
+      lubridate::ymd_hms(value) |>
+        lubridate::with_tz(timezone) |>
+        format("%b %d %Y %H:%M:%S")
+    },
     "duration" = duration_value_to_text,
     "version" = version_value_to_text,
     "integer" = integer_value_to_text,
