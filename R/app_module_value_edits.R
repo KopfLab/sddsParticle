@@ -1,4 +1,4 @@
-# value editing =========
+# value editing module =========
 
 # make unique input id
 uid <- function(gui_id, coreid) sprintf("%s-%s", gui_id, coreid)
@@ -254,6 +254,67 @@ input_module <- function(
   })
 }
 
+# input module with select units
+input_module_selectable_units <- function(
+  id,
+  input_to_value,
+  value_to_input,
+  value_to_text,
+  units_options,
+  make_gui = NULL,
+  input_step = NA,
+  fetch_input = function(ui_inputs, id) {
+    list(
+      v = ui_inputs[[id]],
+      u = ui_inputs[[paste0(id, "units")]]
+    )
+  },
+  correct_input = function(input) return(input),
+  compare_input = function(input1, input2) {
+    near(input1$v, input2$v) && input1$u == input2$u
+  },
+  update_input = function(session, id, input) {
+    updateNumericInput(session, id, value = input$v)
+    updateSelectInput(session, paste0(id, "units"), selected = input$u)
+  },
+  flag_input_changed = function(id) {
+    add_value_changed_class_to_input(id)
+    add_value_changed_class_to_input(paste0(id, "units"))
+  }
+) {
+  if (is.null(make_gui)) {
+    make_gui <- function(id, label, input, units, ...) {
+      widget <- numericInput(
+        inputId = id,
+        label = NULL,
+        value = input$v,
+        step = input_step
+      )
+      units <- selectInput(
+        inputId = paste0(id, "units"),
+        label = NULL,
+        choices = units_options,
+        selected = input$u
+      )
+      generate_standard_input_row(label, widget, units)
+    }
+  }
+  input_module(
+    id,
+    value_to_text = value_to_text,
+    make_gui = make_gui,
+    fetch_input = fetch_input,
+    input_to_value = input_to_value,
+    value_to_input = value_to_input,
+    correct_input = correct_input,
+    compare_input = compare_input,
+    update_input = update_input,
+    flag_input_changed = flag_input_changed
+  )
+}
+
+# specific inputs ================
+
 # null input
 value_null_input <- function(id) {
   input_module(
@@ -348,14 +409,10 @@ value_enum_input <- function(id) {
 
 # duration input
 value_duration_input <- function(id) {
-  input_module(
+  input_module_selectable_units(
     id = id,
     value_to_text = duration_value_to_text,
     value_to_input = duration_to_largest_whole_unit,
-    flag_input_changed = function(id) {
-      add_value_changed_class_to_input(id)
-      add_value_changed_class_to_input(paste0(id, "units"))
-    },
     input_to_value = function(input, units) {
       dur <- .duration_converter[[input$u]](input$v)
       if (units == "ms") {
@@ -364,35 +421,48 @@ value_duration_input <- function(id) {
         as.numeric(dur, units)
       }
     },
-    # make combined gui with units dropdown
-    make_gui = function(id, label, input, units, ...) {
-      widget <- numericInput(
-        inputId = id,
-        label = NULL,
-        value = input$v,
-        step = 1
-      )
-      units <- selectInput(
-        inputId = paste0(id, "units"),
-        label = NULL,
-        choices = names(.duration_converter),
-        selected = input$u
-      )
-      generate_standard_input_row(label, widget, units)
-    },
-    fetch_input = function(ui_inputs, id) {
-      list(
-        v = ui_inputs[[id]],
-        u = ui_inputs[[paste0(id, "units")]]
-      )
-    },
+    input_step = 1L,
+    units_options = names(.duration_converter),
     correct_input = function(input) {
+      # only alow integers
       input$v <- round(as.numeric(input$v))
       return(input)
-    },
-    update_input = function(session, id, input) {
-      updateNumericInput(session, id, value = input$v)
-      updateSelectInput(session, paste0(id, "units"), selected = input$u)
     }
+  )
+}
+
+# TODO: move the resistance functionliaty into microloger only
+resistance_value_to_input <- function(value, units) {
+  if (value > 1e6) {
+    list(v = value / 1e6, u = "MOhm")
+  } else if (value > 1e3) {
+    list(v = value / 1e3, u = "kOhm")
+  } else {
+    list(v = value, u = "Ohm")
+  }
+}
+
+resistance_input_to_value <- function(input, units) {
+  if (input$u == "MOhm") {
+    input$v * 1e6
+  } else if (input$u == "kOhm") {
+    input$v * 1e3
+  } else {
+    input$v
+  }
+}
+
+resistance_value_to_text <- function(value, units) {
+  input <- resistance_value_to_input(value, units)
+  paste(input$v, input$u)
+}
+
+value_resistance_input <- function(id) {
+  input_module_selectable_units(
+    id = id,
+    value_to_input = resistance_value_to_input,
+    input_to_value = resistance_input_to_value,
+    value_to_text = resistance_value_to_text,
+    units_options = c("Ohm", "kOhm", "MOhm")
   )
 }

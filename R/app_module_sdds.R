@@ -462,19 +462,13 @@ sdds_server <- function(
         get_structures_in_app(
           devices = get_devices(),
           timezone = get_timezone(),
-          # TODO: these could be coming from the additional value modules/types/converters
+          # TODO: these should be coming from the additional value modules/types/converters
           additional_types = list(
             "resistance" = expr(.data$base_units == "Ohm")
           ),
-          additional_converters = list("resistance" = function(value, units) {
-            if (value > 1e6) {
-              paste0(value / 1e6, " MOhm")
-            } else if (value > 1e3) {
-              paste0(value / 1e3, " kOhm")
-            } else {
-              paste0(value / 1e3, " Ohm")
-            }
-          })
+          additional_converters = list(
+            "resistance" = edit_modules$resistance$value_to_text
+          )
         ) |>
         try_catch_cnds()
       out |> log_cnds(ns = ns)
@@ -590,7 +584,9 @@ sdds_server <- function(
       "double" = value_double_input("double"),
       "enum" = value_enum_input("enum"),
       "text" = value_text_input("text"),
-      "duration" = value_duration_input("duration")
+      "duration" = value_duration_input("duration"),
+      # TODO: move ot micrologger
+      "resistance" = value_resistance_input("resistance")
     )
 
     # editing modal dialog
