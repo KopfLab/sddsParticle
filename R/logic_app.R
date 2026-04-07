@@ -172,7 +172,6 @@ request_sdds_values_in_app <- function(devices, core_ids, token) {
       conditions = .data$out |>
         purrr::map(~ .x$conditions)
     )
-
   out$conditions |>
     bind_rows() |>
     warn_cnds(include_cnd_symbols = FALSE, include_cnd_calls = FALSE)

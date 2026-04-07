@@ -211,7 +211,8 @@ sdds_server <- function(
       show_hardware = FALSE,
       listed_core_ids = c(),
       edit_structure = tibble(),
-      command_queue = tibble()
+      command_queue = tibble(),
+      selected_core_ids = c()
     )
 
     # devices =============
@@ -517,6 +518,27 @@ sdds_server <- function(
         log_error(ns = ns, user_msg = msg)
       }
     })
+
+    ## selected devices
+    observeEvent(
+      devices$get_selected_ids(),
+      {
+        devices$get_selected_items()
+        new_ids <- setdiff(devices$get_selected_ids(), values$selected_core_ids)
+        disconnected_cores <- get_devices() |>
+          filter(.data$coreid %in% new_ids, !.data$connected) |>
+          pull(.data$name)
+        print(disconnected_cores)
+        if (length(disconnected_cores) > 0) {
+          msg <- format_inline(
+            "Device{?s} {disconnected_cores} {?is/are} NOT connected."
+          )
+          log_warning(ns = ns, user_msg = msg)
+        }
+        values$selected_core_ids <- devices$get_selected_ids()
+      },
+      ignoreNULL = FALSE
+    )
 
     ## hide/show structures if there are selections
     observe(
