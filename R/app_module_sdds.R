@@ -255,6 +255,7 @@ sdds_server <- function(
     get_devices_for_table <- reactive({
       # safety checks
       validate(need(get_devices(), "No devices."))
+
       # safely call function
       out <- get_devices() |>
         get_devices_for_table_in_app(timezone = get_timezone()) |>
@@ -585,6 +586,7 @@ sdds_server <- function(
       "enum" = value_enum_input("enum"),
       "text" = value_text_input("text"),
       "duration" = value_duration_input("duration"),
+      "var_interval" = value_var_intervals_input("var_interal"),
       # TODO: move ot micrologger
       "resistance" = value_resistance_input("resistance")
     )

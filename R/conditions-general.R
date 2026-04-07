@@ -17,7 +17,6 @@ try_catch_cnds <- function(
   truncate_call_stack = TRUE,
   truncate_shiny_call_stack = TRUE,
   augment_errors_to_rlang = TRUE,
-  augment_message = "caught error",
   call = caller_call()
 ) {
   conds <- tibble::tibble(type = character(0), condition = list())
@@ -532,6 +531,31 @@ abort_cnds <- function(
       cli_abort(
         call = .call,
         trace = trace_back(bottom = .env)
+      )
+  }
+}
+
+warn_cnds <- function(
+  conditions,
+  # for format_cnds
+  include_cnd_symbols = TRUE,
+  include_cnd_calls = TRUE
+) {
+  # allow cnds to be a try_catch_cnds return object
+  if (!is.data.frame(conditions) && is.data.frame(conditions$conditions)) {
+    conditions <- conditions$conditions
+  }
+
+  # throw warnings for all
+  if (nrow(conditions) > 0L) {
+    1:nrow(conditions) |>
+      purrr::walk(
+        ~ format_cnds(
+          conditions[.x, ],
+          include_symbol = include_cnd_symbols,
+          include_call = include_cnd_calls
+        ) |>
+          cli_warn()
       )
   }
 }

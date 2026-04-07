@@ -53,7 +53,9 @@ log_cnds <- function(
   }
 
   # get call info
-  call <- as.character(.call[1])
+  call <- as.character(.call[1]) |>
+    stringr::str_remove(stringr::fixed("<reactive:")) |>
+    stringr::str_remove(stringr::fixed(">"))
   if (is_empty(call)) {
     call <- "unknown"
   }
@@ -61,19 +63,19 @@ log_cnds <- function(
   warnings <- cnds |> filter(type == "warning")
   if (nrow(warnings) > 0) {
     # toaster warnings
-    log_warning(
-      ns = ns,
-      user_msg = if (!is.null(user_msg)) {
-        user_msg
-      } else {
-        format_inline(
-          "Encountered {nrow(warnings)} warning{?s} in {call}()"
-        )
-      },
-      warning = warnings |>
-        pull(message) |>
-        paste(collapse = "<br/>")
-    )
+    for (message in warnings$message) {
+      log_warning(
+        ns = ns,
+        user_msg = if (!is.null(user_msg)) {
+          user_msg
+        } else {
+          format_inline(
+            "Warning in {call}()"
+          )
+        },
+        warning = message
+      )
+    }
   }
   errors <- cnds |> filter(type == "error")
   if (nrow(errors) > 0) {
@@ -162,8 +164,8 @@ log_warning <- function(..., ns = NULL, user_msg = NULL, warning = NULL) {
     ns = ns,
     log_fun = rlog::log_warn,
     toaster_fun = shinytoastr::toastr_warning,
-    toaster = if (!is.null(warning)) cli::ansi_strip(warning) else user_msg,
-    title = if (!is.null(warning)) user_msg else NULL,
+    toaster = if (!is.null(warning)) warning else user_msg,
+    title = if (!is.null(warning)) cli::ansi_html(user_msg) else NULL,
     progressBar = TRUE,
     extendedTimeOut = 3000
   )

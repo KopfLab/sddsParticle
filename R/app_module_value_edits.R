@@ -13,14 +13,19 @@ add_value_changed_class_to_input <- function(id) {
 }
 
 # standard input row
-generate_standard_input_row <- function(label, widget, units = NA_character_) {
+generate_standard_input_row <- function(
+  label,
+  widget,
+  units = NA_character_,
+  widths = c(4, 4, 4)
+) {
   fluidRow(
-    column(width = 4, tags$div(style = "margin-top: 5px;", label)),
-    column(width = 4, widget),
+    column(width = widths[1], tags$div(style = "margin-top: 5px;", label)),
+    column(width = widths[2], widget),
     if (is(units, "shiny.tag")) {
-      column(width = 4, units)
+      column(width = widths[3], units)
     } else if (!is.na(units) && is.character(units) && nzchar(units)) {
-      column(width = 4, tags$div(style = "margin-top: 5px;", units))
+      column(width = widths[3], tags$div(style = "margin-top: 5px;", units))
     }
   )
 }
@@ -427,6 +432,87 @@ value_duration_input <- function(id) {
       # only alow integers
       input$v <- round(as.numeric(input$v))
       return(input)
+    }
+  )
+}
+
+# publishing interval input
+value_var_intervals_input <- function(id) {
+  input_module(
+    id,
+    value_to_text = var_intervals_value_to_text,
+    make_gui = function(id, label, input, units, ...) {
+      widget <- selectInput(
+        inputId = id,
+        label = NULL,
+        choices = .var_intervals_conversion |>
+          select("text", "value") |>
+          tibble::deframe() |>
+          c(list("average over individual interval (if publishing)" = "3")),
+        selected = input$s
+      )
+      individual <- numericInput(
+        inputId = paste0(id, "value"),
+        label = NULL,
+        value = input$v,
+        step = 1L
+      )
+      units <- selectInput(
+        inputId = paste0(id, "units"),
+        label = NULL,
+        choices = names(.duration_converter),
+        selected = input$u
+      )
+      tagList(
+        generate_standard_input_row(label, widget, widths = c(4, 8)),
+        div(
+          id = paste0(id, "div"),
+          generate_standard_input_row("", individual, units)
+        ) |>
+          shinyjs::hidden()
+      )
+    },
+    fetch_input = function(ui_inputs, id) {
+      list(
+        s = ui_inputs[[id]],
+        v = ui_inputs[[paste0(id, "value")]],
+        u = ui_inputs[[paste0(id, "units")]]
+      )
+    },
+    value_to_input = function(value, units) {
+      if (value %in% as.character(.var_intervals_conversion$value)) {
+        list(s = value, v = 30, u = "min")
+      } else {
+        dur <- duration_to_largest_whole_unit(value, "ms")
+        list(s = 3L, v = dur$v, u = dur$u)
+      }
+    },
+    input_to_value = function(input, units) {
+      if (input$s %in% as.character(.var_intervals_conversion$value)) {
+        return(as.integer(input$s))
+      }
+      dur <- .duration_converter[[input$u]](input$v)
+      return(as.numeric(dur, "sec") * 1000)
+    },
+    correct_input = function(input) {
+      # only allow integers for value
+      input$v <- round(as.numeric(input$v))
+      return(input)
+    },
+    compare_input = function(input1, input2) {
+      input1$s == input2$s &&
+        (input1$s < 3L || (near(input1$v, input2$v) && input1$u == input2$u))
+    },
+    update_input = function(session, id, input) {
+      shinyjs::toggle(paste0(id, "div"), condition = input$s == "3")
+      updateSelectInput(session, id, selected = input$s)
+      updateNumericInput(session, paste(id, "value"), value = input$v)
+      updateSelectInput(session, paste0(id, "units"), selected = input$u)
+    },
+    flag_input_changed = function(id) {
+      add_value_changed_class_to_input(id)
+      add_value_changed_class_to_input(paste0(id, "value"))
+      add_value_changed_class_to_input(paste0(id, "units"))
     }
   )
 }

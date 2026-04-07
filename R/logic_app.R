@@ -154,19 +154,29 @@ simplify_device_info <- function(devices) {
   devices |> select(where(~ !is.list(.x)))
 }
 
+# request values in app
 request_sdds_values_in_app <- function(devices, core_ids, token) {
-  devices |>
+  out <- devices |>
     filter(.data$coreid %in% core_ids) |>
     select("coreid", "name") |>
     mutate(
-      success = .data$coreid |>
+      out = .data$coreid |>
+        purrr::map(
+          ~ particle_request_sdds_values(.x, token = token) |>
+            try_catch_cnds(error_value = list(return_value = -1))
+        ),
+      success = .data$out |>
         purrr::map_lgl(
-          ~ identical(
-            particle_request_sdds_values(.x, token = token)$return_value,
-            0L
-          )
-        )
+          ~ identical(.x$result$return_value, 0L)
+        ),
+      conditions = .data$out |>
+        purrr::map(~ .x$conditions)
     )
+
+  out$conditions |>
+    bind_rows() |>
+    warn_cnds(include_cnd_symbols = FALSE, include_cnd_calls = FALSE)
+  return(out)
 }
 
 request_sdds_trees_in_app <- function(devices, core_ids, token) {
@@ -364,13 +374,26 @@ update_command_queue_status_in_app <- function(existing_queue, cmds_results) {
 
 # get command logs
 get_command_logs_in_app <- function(devices, core_ids, token) {
-  devices |>
+  out <- devices |>
     filter(.data$coreid %in% core_ids) |>
     select("coreid", "name") |>
     mutate(
-      logs = .data$coreid |>
-        purrr::map_chr(particle_get_sdds_command_log, token = token)
+      out = .data$coreid |>
+        purrr::map(
+          ~ {
+            particle_get_sdds_command_log(.x, token = token) |>
+              try_catch_cnds(error_value = NA_character_)
+          }
+        ),
+      conditions = .data$out |>
+        purrr::map(~ .x$conditions),
+      logs = .data$out |>
+        purrr::map_chr(~ .x$result)
     )
+  out$conditions |>
+    bind_rows() |>
+    warn_cnds(include_cnd_symbols = FALSE, include_cnd_calls = FALSE)
+  return(out)
 }
 
 # prep command logs for table
