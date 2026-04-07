@@ -531,7 +531,7 @@ sdds_server <- function(
         print(disconnected_cores)
         if (length(disconnected_cores) > 0) {
           msg <- format_inline(
-            "Device{?s} {disconnected_cores} {?is/are} NOT connected."
+            "Device{?s} {disconnected_cores} {?is/are} OFFLINE and cannot be controlled remotely."
           )
           log_warning(ns = ns, user_msg = msg)
         }
