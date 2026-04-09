@@ -249,11 +249,7 @@ sdds_parse_trees_and_values <- function(ds) {
         return(NULL)
       }
       out <- sdds_combine_tree_and_values(tree, values) |> try_catch_cnds()
-      out$conditions |>
-        show_cnds(
-          message = format_inline("for coreid {.field {coreid}}"),
-          .call = this_call
-        )
+      out |> show_cnds(.call = this_call)
       out$result
     }
   )
@@ -358,11 +354,11 @@ sdds_parse_values <- function(json) {
         purrr::map_int(~ if (is.integer(.x)) .x else NA_integer_),
       v_dbl = .data$value |>
         # store any numeric (both integer and double) in the double column
-        # for later matching with tree (in case double is exactly xx.00)
+        # for later matching with tree (in case double is exactly xx.00 or
+        # integer is larger unit32 which R cannot store as integer)
         purrr::map_dbl(~ if (is.numeric(.x)) .x else NA_real_),
       v_text = .data$value |>
         purrr::map_chr(~ if (is.character(.x)) .x else NA_character_),
-
       is_null = purrr::map_lgl(.data$value, is.null),
       unknown_type = !is_null &
         is.na(.data$v_int) &
@@ -425,27 +421,33 @@ sdds_combine_tree_and_values <- function(tree, values) {
   tree_w_values <-
     dplyr::full_join(tree, values, by = "idx_path") |>
     dplyr::mutate(
-      is_null = !.data$is_struct & .data$is_null,
       v_enum = purrr::pmap_chr(
         list(.data$is_enum, .data$v_int, .data$enum_values),
         function(is_enum, v_int, enum_values) {
-          if (is_enum && v_int %in% (seq_along(enum_values) - 1L)) {
+          if (
+            identical(is_enum, TRUE) && v_int %in% (seq_along(enum_values) - 1L)
+          ) {
             enum_values[v_int + 1L]
           } else {
             NA_character_
           }
         }
       ),
-      v_missing = !.data$is_struct & is.na(.data$unknown_type),
-      v_valid = .data$v_missing |
+      # either value or structure missing?
+      struc_missing = is.na(.data$path),
+      v_missing = is.na(.data$unknown_type) &
+        !is.na(.data$is_struct) &
+        !.data$is_struct,
+      # non-missing, non-null values that are actually valid?
+      v_valid = .data$struc_missing |
+        .data$v_missing |
         .data$is_struct |
         .data$is_null |
-        # allow double in case integer overflows (r doesn't have unsigned int64)
+        # allow double in case integer overflows (R doesn't have unsigned int64)
         (.data$is_int & (!is.na(.data$v_int) | !is.na(.data$v_dbl))) |
         (.data$is_dbl & !is.na(.data$v_dbl)) |
         (.data$is_text & !is.na(.data$v_text)) |
-        (.data$is_enum & !is.na(.data$v_int) & !is.na(.data$v_enum)),
-      struc_missing = is.na(.data$path)
+        (.data$is_enum & !is.na(.data$v_int) & !is.na(.data$v_enum))
     ) |>
     dplyr::relocate("v_enum", .after = "v_int")
 
@@ -532,7 +534,11 @@ sdds_simplify_trees_and_values <- function(
     "enum" = enum_value_to_text,
     "var_interval" = var_intervals_value_to_text,
     "datetime" = function(value, ...) {
-      lubridate::ymd_hms(value) |>
+      dt <- lubridate::ymd_hms(value, quiet = TRUE)
+      if (is.na(dt)) {
+        return(value)
+      }
+      dt |>
         lubridate::with_tz(timezone) |>
         format("%b %d %Y %H:%M:%S")
     },
@@ -572,7 +578,7 @@ sdds_simplify_trees_and_values <- function(
   # parse
   types_expr <- types |> purrr::imap(~ expr((!!.x) ~ !!.y))
   out <- out |>
-    # filter out structures
+    # filter out structures and values without tree entries
     dplyr::filter(!.data$is_struct) |>
     # new columns
     dplyr::mutate(

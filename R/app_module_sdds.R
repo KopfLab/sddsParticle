@@ -528,7 +528,6 @@ sdds_server <- function(
         disconnected_cores <- get_devices() |>
           filter(.data$coreid %in% new_ids, !.data$connected) |>
           pull(.data$name)
-        print(disconnected_cores)
         if (length(disconnected_cores) > 0) {
           msg <- format_inline(
             "Device{?s} {disconnected_cores} {?is/are} OFFLINE and cannot be controlled remotely."
@@ -1113,7 +1112,7 @@ sdds_server <- function(
               events$get_selected_items() |>
                 get_pretty_json_event_data_for_app()
             ) |>
-            try_catch_cnds(augment_message = "error processing event data")
+            try_catch_cnds()
           if (nrow(out$conditions) > 0) {
             shinyAce::updateAceEditor(
               session,

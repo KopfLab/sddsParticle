@@ -216,7 +216,6 @@ particle_stream_monitor <- function(poll_interval = 1) {
       new_events <- particle_stream_get_events() |>
         dplyr::filter(.data$timestamp > .ps$monitor_last_event_ts)
       if (nrow(new_events) > 0L) {
-        print(new_events)
         .ps$monitor_last_event_ts <- max(new_events$timestamp)
       }
 
