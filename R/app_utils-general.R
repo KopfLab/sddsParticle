@@ -5,9 +5,11 @@
 use_app_utils <- function() {
   tagList(
     tags$style(HTML(
-      ".shiny-output-error-validation { color: #b30000; font-size: 200%;}"
-    )),
-    tags$style(HTML(paste(format(cli::ansi_html_style()), collapse = "\n"))),
+      ".shiny-output-error-validation { color: #b30000; font-size: 150%;}"
+    )) |>
+      singleton(),
+    tags$style(HTML(paste(format(cli::ansi_html_style()), collapse = "\n"))) |>
+      singleton(),
     tags$style(HTML(
       "
       .cli-inline-error {
