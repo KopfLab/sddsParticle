@@ -85,8 +85,14 @@ is_sdds_burstdata <- function(obj) {
 #' @export
 sdds_cache_events <- function(events) {
   events <- events |> sdds_split_events_data()
-  events |> dplyr::filter(.data$kind == "tree") |> cache_trees()
-  events |> dplyr::filter(.data$kind == "values") |> cache_treevalues()
+  events |>
+    filter(.data$kind == "tree") |>
+    rename("tree_json" = "json") |>
+    cache_trees()
+  events |>
+    filter(.data$kind == "values") |>
+    rename("values_json" = "json") |>
+    cache_treevalues()
   invisible(NULL)
 }
 
@@ -107,10 +113,11 @@ sdds_read_cached_trees_and_values <- function(
 # internal function for caching trees
 cache_trees <- function(trees, cache_path = "cache/sdds_trees.csv") {
   # safety checks
-  trees |> check_tibble(req_cols = c("type", "version", "json"))
+  cols <- c("type", "version", "tree_json")
+  trees |> check_tibble(req_cols = cols)
   trees <- trees |>
-    dplyr::select("type", "version", "tree_json" = "json") |>
-    dplyr::filter(
+    select(all_of(cols)) |>
+    filter(
       !is.na(.data$type),
       !is.na(.data$version),
       !is.na(.data$tree_json)
@@ -160,19 +167,11 @@ read_cached_trees <- function(cache_path = "cache/sdds_trees.csv") {
 # internal function for caching tree values
 cache_treevalues <- function(values, cache_path = "cache/sdds_values.csv") {
   # safety checks
-  values |>
-    check_tibble(
-      req_cols = c("coreid", "published_at", "type", "version", "json")
-    )
+  cols <- c("coreid", "published_at", "type", "version", "values_json")
+  values |> check_tibble(req_cols = cols)
   values <- values |>
-    dplyr::select(
-      "coreid",
-      "published_at",
-      "type",
-      "version",
-      "values_json" = "json"
-    ) |>
-    dplyr::filter(
+    select(all_of(cols)) |>
+    filter(
       !is.na(.data$coreid),
       !is.na(.data$type),
       !is.na(.data$version),
