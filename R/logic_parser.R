@@ -715,6 +715,42 @@ sdds_parse_command_log <- function(json, timezone = Sys.timezone()) {
   return(cmds_formatted)
 }
 
+#' @describeIn sdds_parser parses the a state snapshot from a device
+#' @export
+sdds_parse_state_snapshot <- function(json) {
+  # get json
+  empty_return <- tibble(
+    path = character(),
+    v_num = numeric(),
+    v_text = character()
+  )
+  if (!missing(json) && !is_empty(json) && is.na(json[1])) {
+    return(empty_return)
+  }
+  snap <- json |> parse_json()
+  if (is_empty(snap)) {
+    return(empty_return)
+  }
+  snap |> flatten_named_list() |> bind_rows()
+}
+
+flatten_named_list <- function(x, parent = NULL, sep = ".") {
+  out <- list()
+  purrr::map2(names(x), x, function(var, val) {
+    var <- if (is.null(parent)) var else paste0(parent, sep, var)
+    if (is.list(val)) {
+      flatten_named_list(val, var, sep)
+    } else if (!is_empty(val) && !is.na(val)) {
+      if (is.numeric(val)) {
+        list(list(path = var, v_num = val))
+      } else {
+        list(list(path = var, v_text = val))
+      }
+    }
+  }) |>
+    unlist(recursive = FALSE)
+}
+
 # helper functions ========
 
 # check if it's valid json
