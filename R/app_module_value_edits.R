@@ -180,7 +180,8 @@ input_module <- function(
     # flag inputs if they have changed (based on corrected value)
     flag_changed_inputs <- function(coreid, corrected) {
       if (
-        !is.null(corrected) && !compare_input(rv$original[[coreid]], corrected)
+        !is.null(corrected) &&
+          !compare_input(rv$original[[coreid]], corrected)
       ) {
         flag_input_first_time(coreid)
       }
@@ -276,7 +277,11 @@ input_module_selectable_units <- function(
   },
   correct_input = function(input) return(input),
   compare_input = function(input1, input2) {
-    near(input1$v, input2$v) && input1$u == input2$u
+    (identical(input1$v, input2$v) ||
+      (!is.na(input1$v) &&
+        !is.na(input2$v) &&
+        near(input1$v, input2$v))) &&
+      input1$u == input2$u
   },
   update_input = function(session, id, input) {
     updateNumericInput(session, id, value = input$v)

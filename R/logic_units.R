@@ -99,37 +99,41 @@ duration_value_to_text <- function(value, units) {
     value,
     units,
     ~ {
-      value <- .x
-      units <- .y
-      if (!units %in% names(.duration_converter)) {
-        cli_abort("Unknown units {.field {units}}")
+      if (!is.na(value)) {
+        value <- .x
+        units <- .y
+        if (!units %in% names(.duration_converter)) {
+          cli_abort("Unknown units {.field {units}}")
+        }
+        secs <- .duration_converter[[units]](value) |> as.numeric("sec")
+        if (secs < 1) {
+          return(paste0(secs * 1000, " ms"))
+        }
+
+        days <- secs %/% 86400L
+        secs <- secs %% 86400L
+
+        hours <- secs %/% 3600L
+        secs <- secs %% 3600L
+
+        mins <- secs %/% 60L
+        secs <- secs %% 60L
+
+        parts <- c(
+          if (days >= 2) paste0(days, " days"),
+          if (days > 0 && days < 2) paste0(days, " day"),
+          if (hours >= 2) paste0(hours, " hours"),
+          if (hours > 0 && hours < 2) paste0(hours, " hour"),
+          if (mins >= 2) paste0(mins, " mins"),
+          if (mins > 0 && mins < 2) paste0(mins, " min"),
+          if (secs >= 2) paste0(round(secs, 2), " secs"),
+          if (secs > 0 && secs < 2) paste0(round(secs, 2), " sec")
+        )
+
+        paste(parts, collapse = " ")
+      } else {
+        NA_character_
       }
-      secs <- .duration_converter[[units]](value) |> as.numeric("sec")
-      if (secs < 1) {
-        return(paste0(secs * 1000, " ms"))
-      }
-
-      days <- secs %/% 86400L
-      secs <- secs %% 86400L
-
-      hours <- secs %/% 3600L
-      secs <- secs %% 3600L
-
-      mins <- secs %/% 60L
-      secs <- secs %% 60L
-
-      parts <- c(
-        if (days >= 2) paste0(days, " days"),
-        if (days > 0 && days < 2) paste0(days, " day"),
-        if (hours >= 2) paste0(hours, " hours"),
-        if (hours > 0 && hours < 2) paste0(hours, " hour"),
-        if (mins >= 2) paste0(mins, " mins"),
-        if (mins > 0 && mins < 2) paste0(mins, " min"),
-        if (secs >= 2) paste0(round(secs, 2), " secs"),
-        if (secs > 0 && secs < 2) paste0(round(secs, 2), " sec")
-      )
-
-      paste(parts, collapse = " ")
     }
   )
 }
