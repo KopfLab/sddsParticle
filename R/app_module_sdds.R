@@ -1,10 +1,12 @@
 #' @describeIn sdds_module generates the ui for the sdds devices table
+#' @export
 sdds_ui_devices_table <- function(id) {
   ns <- NS(id)
   module_selector_table_ui(ns("devices"))
 }
 
 #' @describeIn sdds_module generates the ui for the sdds devices action links
+#' @export
 sdds_ui_devices_actions <- function(id) {
   ns <- NS(id)
   tagList(
@@ -29,18 +31,21 @@ sdds_ui_devices_actions <- function(id) {
 }
 
 #' @describeIn sdds_module generates the ui for the sdds structures div (include in your UI layout to show/hide when devices are selected)
+#' @export
 sdds_ui_structures_div <- function(id, ...) {
   ns <- NS(id)
   div(id = ns("structures_div"), ...) |> shinyjs::hidden()
 }
 
 #' @describeIn sdds_module generates the ui for the sdds structures table
+#' @export
 sdds_ui_structures_table <- function(id) {
   ns <- NS(id)
   module_selector_table_ui(ns("structures"))
 }
 
 #' @describeIn sdds_module generates the ui for the sdds structures action links
+#' @export
 sdds_ui_structures_actions <- function(id) {
   ns <- NS(id)
   tagList(
