@@ -29,6 +29,7 @@ module_selector_table_server(
   formatting_calls = list(),
   editable = FALSE,
   extensions = list(),
+  no_data_message = "No data available",
   ...
 )
 }
