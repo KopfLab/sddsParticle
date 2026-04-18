@@ -3,13 +3,11 @@
 #' @description SDDS shiny Module.
 #'
 #' @param id module id
-#' @param enable_add_remove_devices whether to let devices be added and removed
 #' @describeIn sdds_module generates the ui for the sdds module
 #' @export
 sdds_ui <- function(
   id,
-  device_list_title = "Devices",
-  enable_add_remove_devices = FALSE
+  device_list_title = "Devices"
 ) {
   ns <- NS(id)
   tagList(
@@ -18,29 +16,7 @@ sdds_ui <- function(
       title = span(
         device_list_title,
         div(
-          style = "position: absolute; right: 10px; top: 5px;",
-          if (enable_add_remove_devices) {
-            actionButton(
-              ns("add_device"),
-              "Add",
-              icon = icon("plus"),
-              style = "border: 0;"
-            ) |>
-              add_tooltip(
-                "Add devices from the list of availalble devices."
-              )
-          },
-          if (enable_add_remove_devices) {
-            actionButton(
-              ns("remove_device"),
-              "Remove",
-              icon = icon("minus"),
-              style = "border: 0;"
-            ) |>
-              add_tooltip(
-                "Remove devices from this list."
-              )
-          },
+          style = "position: absolute; right: 50px; top: 5px;",
           actionButton(
             ns("refresh_devices"),
             "Refresh",
@@ -50,6 +26,10 @@ sdds_ui <- function(
             add_tooltip(
               "Refresh device list."
             ),
+          module_selector_table_select_all_button(
+            ns("devices"),
+            border = FALSE
+          ),
           module_selector_table_deselect_all_button(
             ns("devices"),
             border = FALSE
@@ -59,6 +39,7 @@ sdds_ui <- function(
       width = 12,
       status = "info",
       solidHeader = TRUE,
+      collapsible = TRUE,
       module_selector_table_ui(ns("devices")),
       footer = tagList("Select the devices you want to work with.")
     ),
@@ -159,16 +140,14 @@ sdds_header <- function() {
   )
 }
 
-#' @param accessible_core_ids the particle devices that should be accessible
-#' @param listed_core_ids the core ids that should be listed, if anything but NULL is provided, leads to the add/remove interface being enabled
+#' @param accessible_core_ids the particle devices that are allowed to be controlled
 #' @describeIn sdds_module generates the server for the sdds module
 #' @export
 sdds_server <- function(
   id,
   token,
   timezone = Sys.timezone(),
-  accessible_core_ids = NULL,
-  listed_core_ids = NULL
+  accessible_core_ids = NULL
 ) {
   # make timezone into a function if it's not
   if (!is.function(timezone)) {
@@ -188,28 +167,15 @@ sdds_server <- function(
     get_accessible_core_ids <- accessible_core_ids
   }
 
-  # make listed core ids into a function if it's not
-  if (!is.function(listed_core_ids)) {
-    if (is.null(listed_core_ids)) {
-      get_listed_core_ids <- get_accessible_core_ids
-    } else {
-      get_listed_core_ids <- reactive({
-        listed_core_ids
-      })
-    }
-  } else {
-    get_listed_core_ids <- listed_core_ids
-  }
-
   # actual module server
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
     # reactive values =======
     values <- reactiveValues(
+      refresh_devices = 0,
       show_system = FALSE,
       show_hardware = FALSE,
-      listed_core_ids = c(),
       edit_structure = tibble(),
       command_queue = tibble(),
       selected_core_ids = c()
@@ -220,7 +186,7 @@ sdds_server <- function(
     ## delete devmode cache
     if (in_devmode()) {
       observeEvent(
-        input$refresh_devices,
+        values$refresh_devices,
         {
           if (file.exists("cache/sdds_devices.csv")) {
             unlink("cache/sdds_devices.csv")
@@ -230,13 +196,18 @@ sdds_server <- function(
       )
     }
 
+    ## refresh devices
+    refresh_devices <- function() {
+      values$refresh_devices <- values$refresh_devices + 1L
+    }
+    observeEvent(input$refresh_devices, refresh_devices())
+
     ## get all devices
     get_all_devices <- reactive({
-      input$refresh_devices
-      log_info(ns = ns, user_msg = "Fetching devices")
+      values$refresh_devices
+      log_info(ns = ns, user_msg = "Fetching available devices")
       # safely call function
       out <- get_devices_in_app(token = token) |>
-        get_filtered_devices_in_app(core_ids = get_accessible_core_ids()) |>
         try_catch_cnds()
       out |> log_cnds(ns = ns)
       return(out$result)
@@ -246,7 +217,7 @@ sdds_server <- function(
     get_devices <- reactive({
       validate(need(get_all_devices(), "No devices available."))
       out <- get_all_devices() |>
-        get_filtered_devices_in_app(core_ids = values$listed_core_ids) |>
+        get_filtered_devices_in_app(core_ids = get_accessible_core_ids()) |>
         try_catch_cnds()
       out |> log_cnds(ns = ns)
       return(out$result)
@@ -256,7 +227,6 @@ sdds_server <- function(
     get_devices_for_table <- reactive({
       # safety checks
       validate(need(get_devices(), "No devices."))
-
       # safely call function
       out <- get_devices() |>
         get_devices_for_table_in_app(timezone = get_timezone()) |>
@@ -281,98 +251,6 @@ sdds_server <- function(
       dom = "ft",
       scrollX = TRUE,
       scrollY = "150px"
-    )
-
-    # device list add/remove ===========
-
-    ## reset if changed outside the module
-    observe({
-      values$listed_core_ids <- get_listed_core_ids()
-    })
-
-    ## remove selected devices
-    observeEvent(input$remove_device, {
-      if (!is_empty(devices$get_selected_ids())) {
-        values$listed_core_ids <- setdiff(
-          devices$get_all_ids(),
-          devices$get_selected_ids()
-        )
-      }
-    })
-
-    ## open add devices dialog
-    observeEvent(input$add_device, {
-      showModal(add_devices_modal)
-    })
-
-    ## get all devices for selector table table
-    get_all_devices_for_table <- reactive({
-      # safety checks
-      input$add_device
-      isolate({
-        validate(need(get_all_devices(), "No devices."))
-        # which core ids are not already selected?
-        core_ids <- get_all_devices()$coreid
-        if (devices$has_data()) {
-          core_ids <- core_ids |> setdiff(devices$get_all_ids())
-        }
-        # safely call function
-        out <- get_all_devices() |>
-          get_filtered_devices_in_app(core_ids = core_ids) |>
-          get_devices_for_table_in_app(timezone = get_timezone()) |>
-          try_catch_cnds()
-        out |> log_cnds(ns = ns)
-        return(out$result)
-      })
-    })
-
-    ## setup devices selector table
-    all_devices <- callModule(
-      module_selector_table_server,
-      "all_devices",
-      get_data = get_all_devices_for_table,
-      id_column = "coreid",
-      # make id column invisible
-      columnDefs = list(
-        list(visible = FALSE, targets = 0)
-      ),
-      # view all & scrolling
-      allow_view_all = TRUE,
-      auto_reselect = FALSE,
-      initial_page_length = -1,
-      dom = "ft",
-      scrollX = TRUE,
-      scrollY = "150px"
-    )
-
-    ## add devices to list
-    observeEvent(input$modal_add_device, {
-      values$listed_core_ids <- c(
-        values$listed_core_ids,
-        all_devices$get_selected_ids()
-      ) |>
-        unique()
-      removeModal()
-    })
-
-    ## command queue modal
-    add_devices_modal <- modalDialog(
-      title = h3("Add devices"),
-      module_selector_table_ui(ns("all_devices")),
-      footer = tagList(
-        actionButton(
-          ns("modal_add_device"),
-          "Add selected",
-          icon = icon("plus"),
-          style = "border: 0;"
-        ) |>
-          add_tooltip(
-            "Add the selected devices."
-          ),
-        modalButton("Close")
-      ),
-      easyClose = TRUE,
-      size = "l"
     )
 
     # structures =======
@@ -411,8 +289,8 @@ sdds_server <- function(
 
     ## get structures
     get_structures <- reactive({
-      req(get_devices())
-      req(devices$has_data())
+      req(devices$table_exists())
+
       out <- get_structures_cache()
 
       # log cnds here instead of in the poll
@@ -542,6 +420,7 @@ sdds_server <- function(
     ## hide/show structures if there are selections
     observe(
       {
+        req(devices$table_exists())
         shinyjs::toggle(
           "structures_box",
           condition = devices$has_data() &&
@@ -800,6 +679,7 @@ sdds_server <- function(
     ## get data
     get_command_queue_for_table <- reactive({
       req(nrow(values$command_queue) > 0)
+      input$send_commands # trigger every time we click
       values$command_queue |>
         mutate(
           status = if_else(is.na(.data$status), "not sent yet", .data$status)
@@ -835,7 +715,7 @@ sdds_server <- function(
     })
 
     ## triger selection after loading
-    observeEvent(queue$table_complete(), {
+    observeEvent(queue$is_table_reloaded(), {
       req(nrow(values$command_queue) > 0)
       ids <- values$command_queue |>
         filter(is.na(.data$status)) |>
@@ -1210,6 +1090,12 @@ sdds_server <- function(
       scrollX = TRUE,
       scrollY = "250px",
       selection = "none"
+    )
+
+    # return functions ======
+    list(
+      get_all_devices = get_all_devices,
+      refresh_devices = refresh_devices
     )
   })
 }
