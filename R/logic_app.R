@@ -264,7 +264,12 @@ get_structures_for_path_in_app <- function(structures, path) {
   structures |> filter(.data$path == !!path)
 }
 
-prepare_edit_ui_in_app <- function(structure, gui_id, edit_modules) {
+prepare_edit_ui_in_app <- function(
+  structure,
+  gui_id,
+  edit_modules,
+  changed = FALSE
+) {
   # reset modules
   edit_modules |> purrr::walk(~ .x$reset())
   # generate widgets
@@ -292,7 +297,8 @@ prepare_edit_ui_in_app <- function(structure, gui_id, edit_modules) {
             label = label,
             value = value,
             units = units,
-            choices = choices
+            choices = choices,
+            changed = changed
           ))
         }
       )

@@ -4,12 +4,16 @@
 uid <- function(gui_id, coreid) sprintf("%s-%s", gui_id, coreid)
 
 # tag input with value change class
-add_value_changed_class_to_input <- function(id) {
+add_value_changed_class_to_input <- function(id, delay = NULL) {
   # shinyjs::addClass(id = id, class = "value-changed") # does not seem to work for all input types
-  format_inline(
+  js <- format_inline(
     "document.querySelector('#{id}').closest('.form-group').classList.add('value-changed');"
-  ) |>
-    shinyjs::runjs()
+  )
+  if (!is.null(delay)) {
+    shinyjs::delay(delay, shinyjs::runjs(js))
+  } else {
+    shinyjs::runjs(js)
+  }
 }
 
 # standard input row
@@ -41,7 +45,9 @@ input_module <- function(
   correct_input = function(input) return(input),
   compare_input = function(input1, input2) identical(input1, input2),
   update_input = function(session, id, input) {},
-  flag_input_changed = function(id) add_value_changed_class_to_input(id)
+  flag_input_changed = function(id, ...) {
+    add_value_changed_class_to_input(id, ...)
+  }
 ) {
   # safety checks
   stopifnot(
@@ -169,10 +175,10 @@ input_module <- function(
     }
 
     # flag only first time
-    flag_input_first_time <- function(coreid) {
+    flag_input_first_time <- function(coreid, delay = NULL) {
       if (!rv$changed[[coreid]]) {
         # first time change --> flag
-        flag_input_changed(ns(uid(rv$gui_id, coreid)))
+        flag_input_changed(ns(uid(rv$gui_id, coreid)), delay = delay)
         rv$changed[[coreid]] <- TRUE
       }
     }
@@ -217,7 +223,14 @@ input_module <- function(
     })
 
     # generate the edit user interface
-    generate_ui <- function(gui_id, coreid, value, units, ...) {
+    generate_ui <- function(
+      gui_id,
+      coreid,
+      value,
+      units,
+      ...,
+      changed = FALSE
+    ) {
       # info message
       format_inline("generating edit UI #{gui_id} for {coreid}") |>
         log_debug(ns = ns)
@@ -236,12 +249,16 @@ input_module <- function(
       rv$original[[coreid]] <- value_to_input(value, units)
       rv$units[[coreid]] <- units
       rv$changed[[coreid]] <- FALSE
+      if (changed) {
+        flag_input_first_time(coreid, delay = 1000)
+      }
 
       # generate UI
       make_gui(
         id = ns(uid(rv$gui_id, coreid)),
         input = rv$original[[coreid]],
         units = units,
+        changed = changed,
         ...
       )
     }
@@ -287,13 +304,13 @@ input_module_selectable_units <- function(
     updateNumericInput(session, id, value = input$v)
     updateSelectInput(session, paste0(id, "units"), selected = input$u)
   },
-  flag_input_changed = function(id) {
-    add_value_changed_class_to_input(id)
-    add_value_changed_class_to_input(paste0(id, "units"))
+  flag_input_changed = function(id, ...) {
+    add_value_changed_class_to_input(id, ...)
+    add_value_changed_class_to_input(paste0(id, "units"), ...)
   }
 ) {
   if (is.null(make_gui)) {
-    make_gui <- function(id, label, input, units, ...) {
+    make_gui <- function(id, label, input, units, changed, ...) {
       widget <- numericInput(
         inputId = id,
         label = NULL,
@@ -341,7 +358,7 @@ value_text_input <- function(id) {
   input_module(
     id = id,
     value_to_text = text_value_to_text,
-    make_gui = function(id, label, input, units, ...) {
+    make_gui = function(id, label, input, units, changed, ...) {
       widget <- textInput(
         inputId = id,
         label = NULL,
@@ -360,7 +377,7 @@ value_integer_input <- function(id) {
   input_module(
     id = id,
     value_to_text = integer_value_to_text,
-    make_gui = function(id, label, input, units, ...) {
+    make_gui = function(id, label, input, units, changed, ...) {
       widget <- numericInput(
         inputId = id,
         label = NULL,
@@ -386,8 +403,12 @@ value_double_input <- function(id) {
   input_module(
     id = id,
     value_to_text = double_value_to_text,
-    make_gui = function(id, label, input, units, ...) {
-      widget <- numericInput(inputId = id, label = NULL, value = input)
+    make_gui = function(id, label, input, units, changed, ...) {
+      widget <- numericInput(
+        inputId = id,
+        label = NULL,
+        value = input
+      )
       generate_standard_input_row(label, widget, units)
     },
     compare_input = function(input1, input2) near(input1, input2),
@@ -402,7 +423,7 @@ value_enum_input <- function(id) {
   input_module(
     id = id,
     value_to_text = enum_value_to_text,
-    make_gui = function(id, label, input, choices, ...) {
+    make_gui = function(id, label, input, choices, changed, ...) {
       widget <- selectInput(
         inputId = id,
         label = NULL,
@@ -446,7 +467,7 @@ value_var_intervals_input <- function(id) {
   input_module(
     id,
     value_to_text = var_intervals_value_to_text,
-    make_gui = function(id, label, input, units, ...) {
+    make_gui = function(id, label, input, units, changed, ...) {
       widget <- selectInput(
         inputId = id,
         label = NULL,
@@ -514,10 +535,10 @@ value_var_intervals_input <- function(id) {
       updateNumericInput(session, paste(id, "value"), value = input$v)
       updateSelectInput(session, paste0(id, "units"), selected = input$u)
     },
-    flag_input_changed = function(id) {
-      add_value_changed_class_to_input(id)
-      add_value_changed_class_to_input(paste0(id, "value"))
-      add_value_changed_class_to_input(paste0(id, "units"))
+    flag_input_changed = function(id, ...) {
+      add_value_changed_class_to_input(id, ...)
+      add_value_changed_class_to_input(paste0(id, "value"), ...)
+      add_value_changed_class_to_input(paste0(id, "units"), ...)
     }
   )
 }

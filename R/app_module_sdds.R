@@ -212,6 +212,7 @@ sdds_server <- function(
       show_system = FALSE,
       show_hardware = FALSE,
       edit_structure = tibble(),
+      edit_changed = FALSE,
       command_queue = tibble(),
       selected_core_ids = c()
     )
@@ -577,53 +578,76 @@ sdds_server <- function(
       edit_modal_widgets()
     })
 
+    # edit structure function
+    edit_structure <- function(
+      path,
+      value = NULL,
+      flag_as_changed = !is.null(value)
+    ) {
+      # safely get structure
+      out <- get_structures() |>
+        get_structures_for_path_in_app(path = path) |>
+        try_catch_cnds()
+      out |> log_cnds(ns = ns)
+      structure <- out$result
+      if (is.null(structure)) {
+        return()
+      }
+
+      # read only?
+      if (all(structure$readonly)) {
+        values$edit_structure <- tibble()
+        log_info(
+          ns = ns,
+          user_msg = sprintf("'%s' is read-only", path)
+        )
+        return()
+      }
+
+      # overwrite existing value?
+      if (!is.null(value)) {
+        new_value <- value
+        structure <- structure |>
+          mutate(
+            value = .data$value |>
+              purrr::map(
+                ~ {
+                  new_value
+                }
+              )
+          )
+      }
+
+      # keep track of edit structure
+      values$edit_structure <- structure
+      values$edit_changed <- flag_as_changed
+
+      # safely generate edit ui fields
+      modal_session_id(modal_session_id() + 1)
+      out <- structure |>
+        prepare_edit_ui_in_app(
+          gui_id = modal_session_id(),
+          edit_modules = edit_modules,
+          changed = flag_as_changed
+        ) |>
+        try_catch_cnds()
+      out |> log_cnds(ns = ns)
+      if (is.null(out$result)) {
+        return()
+      }
+
+      # assign widgets
+      edit_modal_widgets(out$result)
+      edit_modal |> showModal()
+    }
+
     # trigger generation of the edit widgets (requires unique ids each time it's recreate to manage observers)
     modal_session_id <- reactiveVal(0)
     observeEvent(
       structures$get_selected_ids(),
       {
         req(structures$get_selected_ids())
-        path <- structures$get_selected_ids()
-
-        # safely call function
-        out <- get_structures() |>
-          get_structures_for_path_in_app(path = path) |>
-          try_catch_cnds()
-        out |> log_cnds(ns = ns)
-        structure <- out$result
-        if (is.null(structure)) {
-          return()
-        }
-
-        # read only?
-        if (all(structure$readonly)) {
-          values$edit_structure <- tibble()
-          log_info(
-            ns = ns,
-            user_msg = sprintf("'%s' is read-only", path)
-          )
-          return()
-        }
-
-        # keep track of edit structure
-        values$edit_structure <- structure
-
-        # safely generate edit ui fields
-        modal_session_id(modal_session_id() + 1)
-        out <- structure |>
-          prepare_edit_ui_in_app(
-            gui_id = modal_session_id(),
-            edit_modules = edit_modules
-          ) |>
-          try_catch_cnds()
-        out |> log_cnds(ns = ns)
-        if (is.null(out$result)) {
-          return()
-        }
-
-        # assign widgets
-        edit_modal_widgets(out$result)
-        edit_modal |> showModal()
+        edit_structure(path = structures$get_selected_ids())
       }
     )
 
@@ -631,9 +655,18 @@ sdds_server <- function(
     observe({
       req(edit_modal_widgets())
       has_changes <- purrr::map_lgl(edit_modules, ~ .x$has_changes())
-      shinyjs::toggleState("copy_to_all", condition = any(has_changes))
-      shinyjs::toggleState("send_now", condition = any(has_changes))
-      shinyjs::toggleState("add_to_queue", condition = any(has_changes))
+      if (isolate(values$edit_changed)) {
+        shinyjs::toggleState("copy_to_all", condition = any(has_changes)) |>
+          shinyjs::delay(ms = 1000)
+        shinyjs::toggleState("send_now", condition = any(has_changes)) |>
+          shinyjs::delay(ms = 1000)
+        shinyjs::toggleState("add_to_queue", condition = any(has_changes)) |>
+          shinyjs::delay(ms = 1000)
+      } else {
+        shinyjs::toggleState("copy_to_all", condition = any(has_changes))
+        shinyjs::toggleState("send_now", condition = any(has_changes))
+        shinyjs::toggleState("add_to_queue", condition = any(has_changes))
+      }
     })
 
     # whether to show the copy to all button
@@ -1130,7 +1163,8 @@ sdds_server <- function(
     # return functions ======
     list(
       get_all_devices = get_all_devices,
-      refresh_devices = refresh_devices
+      refresh_devices = refresh_devices,
+      edit_structure = edit_structure
     )
   })
 }

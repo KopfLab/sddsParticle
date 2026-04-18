@@ -67,9 +67,19 @@ example_ui <- function(timezone) {
         footer = tagList("Select the devices you want to work with.")
       ),
 
-      # SDDS structure
+      # SDDS structure div
       sdds_ui_structures_div(
         id = "sdds",
+        # Common actions
+        shinydashboard::box(
+          title = span("Common actions"),
+          width = 12,
+          status = "info",
+          solidHeader = TRUE,
+          actionButton("restart", "Restart", icon = icon("gears")),
+          actionButton("save", "Save state", icon = icon("floppy-disk"))
+        ),
+        # SDDS structures
         shinydashboard::box(
           title = span(
             "Data structures",
@@ -92,6 +102,14 @@ example_ui <- function(timezone) {
 example_server <- function(token) {
   # server function
   function(input, output, session) {
-    sdds_server("sdds", token, timezone = reactive(input$timezone))
+    sdds <- sdds_server("sdds", token, timezone = reactive(input$timezone))
+
+    # common actions
+    observeEvent(input$restart, {
+      sdds$edit_structure("SYSTEM.action", value = "restart")
+    })
+    observeEvent(input$save, {
+      sdds$edit_structure("SYSTEM.action", value = "saveState")
+    })
   }
 }
