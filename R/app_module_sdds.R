@@ -1,3 +1,107 @@
+#' @describeIn sdds_module generates the ui for the sdds devices table
+sdds_ui_devices_table <- function(id) {
+  ns <- NS(id)
+  module_selector_table_ui(ns("devices"))
+}
+
+#' @describeIn sdds_module generates the ui for the sdds devices action links
+sdds_ui_devices_actions <- function(id) {
+  ns <- NS(id)
+  tagList(
+    actionButton(
+      ns("refresh_devices"),
+      "Refresh",
+      icon = icon("arrows-rotate"),
+      style = "border: 0;"
+    ) |>
+      add_tooltip(
+        "Refresh device list."
+      ),
+    module_selector_table_select_all_button(
+      ns("devices"),
+      border = FALSE
+    ),
+    module_selector_table_deselect_all_button(
+      ns("devices"),
+      border = FALSE
+    )
+  )
+}
+
+#' @describeIn sdds_module generates the ui for the sdds structures div (include in your UI layout to show/hide when devices are selected)
+sdds_ui_structures_div <- function(id, ...) {
+  ns <- NS(id)
+  div(id = ns("structures_div"), ...) |> shinyjs::hidden()
+}
+
+#' @describeIn sdds_module generates the ui for the sdds structures table
+sdds_ui_structures_table <- function(id) {
+  ns <- NS(id)
+  module_selector_table_ui(ns("structures"))
+}
+
+#' @describeIn sdds_module generates the ui for the sdds structures action links
+sdds_ui_structures_actions <- function(id) {
+  ns <- NS(id)
+  tagList(
+    actionButton(
+      ns("show_hide_system"),
+      textOutput(ns("system_label"), inline = TRUE),
+      icon = icon("house"),
+      style = "border: 0;"
+    ) |>
+      add_tooltip(
+        "Show/hide the HARDWARE menu items."
+      ),
+    actionButton(
+      ns("show_hide_hardware"),
+      textOutput(ns("hardware_label"), inline = TRUE),
+      icon = icon("microchip"),
+      style = "border: 0;"
+    ) |>
+      add_tooltip(
+        "Show/hide the HARDWARE menu items."
+      ),
+    actionButton(
+      ns("send_commands"),
+      "Send queue",
+      icon = icon("paper-plane"),
+      style = "border: 0;"
+    ) |>
+      add_tooltip(
+        "Send commands to make the changes."
+      ) |>
+      shinyjs::disabled(),
+    actionButton(
+      ns("command_logs"),
+      "Fetch logs",
+      icon = icon("list-check"),
+      style = "border: 0;"
+    ) |>
+      add_tooltip(
+        "Show latest commands sent to devices."
+      ),
+    actionButton(
+      ns("events_stream"),
+      "Show events",
+      icon = icon("timeline"),
+      style = "border: 0;"
+    ) |>
+      add_tooltip(
+        "Show events sent by the selected devices."
+      ),
+    actionButton(
+      ns("fetch_values"),
+      "Request data",
+      icon = icon("cloud-arrow-down"),
+      style = "border: 0;"
+    ) |>
+      add_tooltip(
+        "Request latest structure from devices."
+      )
+  )
+}
+
 #' sdds GUI module
 #'
 #' @description SDDS shiny Module.
@@ -17,104 +121,35 @@ sdds_ui <- function(
         device_list_title,
         div(
           style = "position: absolute; right: 50px; top: 5px;",
-          actionButton(
-            ns("refresh_devices"),
-            "Refresh",
-            icon = icon("arrows-rotate"),
-            style = "border: 0;"
-          ) |>
-            add_tooltip(
-              "Refresh device list."
-            ),
-          module_selector_table_select_all_button(
-            ns("devices"),
-            border = FALSE
-          ),
-          module_selector_table_deselect_all_button(
-            ns("devices"),
-            border = FALSE
-          )
+          sdds_ui_devices_actions(id),
         )
       ),
       width = 12,
       status = "info",
       solidHeader = TRUE,
       collapsible = TRUE,
-      module_selector_table_ui(ns("devices")),
+      sdds_ui_devices_table(id),
       footer = tagList("Select the devices you want to work with.")
     ),
 
     # commands / self-describing data structure
-    shinydashboard::box(
-      title = span(
-        "Control Structures",
-        div(
-          style = "position: absolute; right: 10px; top: 5px;",
-          actionButton(
-            ns("show_hide_system"),
-            textOutput(ns("system_label"), inline = TRUE),
-            icon = icon("house"),
-            style = "border: 0;"
-          ) |>
-            add_tooltip(
-              "Show/hide the HARDWARE menu items."
-            ),
-          actionButton(
-            ns("show_hide_hardware"),
-            textOutput(ns("hardware_label"), inline = TRUE),
-            icon = icon("microchip"),
-            style = "border: 0;"
-          ) |>
-            add_tooltip(
-              "Show/hide the HARDWARE menu items."
-            ),
-          actionButton(
-            ns("send_commands"),
-            "Send queue",
-            icon = icon("paper-plane"),
-            style = "border: 0;"
-          ) |>
-            add_tooltip(
-              "Send commands to make the changes."
-            ) |>
-            shinyjs::disabled(),
-          actionButton(
-            ns("command_logs"),
-            "Fetch logs",
-            icon = icon("list-check"),
-            style = "border: 0;"
-          ) |>
-            add_tooltip(
-              "Show latest commands sent to devices."
-            ),
-          actionButton(
-            ns("events_stream"),
-            "Show events",
-            icon = icon("timeline"),
-            style = "border: 0;"
-          ) |>
-            add_tooltip(
-              "Show events sent by the selected devices."
-            ),
-          actionButton(
-            ns("fetch_values"),
-            "Request data",
-            icon = icon("cloud-arrow-down"),
-            style = "border: 0;"
-          ) |>
-            add_tooltip(
-              "Request latest structure from devices."
-            )
-        )
-      ),
-      width = 12,
-      status = "info",
-      solidHeader = TRUE,
-      module_selector_table_ui(ns("structures")),
-      footer = tagList("Click to change values (if allowed).")
-    ) |>
-      div(id = ns("structures_box")) |>
-      shinyjs::hidden()
+    sdds_ui_structures_div(
+      id,
+      shinydashboard::box(
+        title = span(
+          "Control Structures",
+          div(
+            style = "position: absolute; right: 10px; top: 5px;",
+            sdds_ui_structures_actions(id)
+          )
+        ),
+        width = 12,
+        status = "info",
+        solidHeader = TRUE,
+        sdds_ui_structures_table(id),
+        footer = tagList("Click to change values (if allowed).")
+      )
+    )
   )
 }
 
@@ -189,7 +224,7 @@ sdds_server <- function(
         values$refresh_devices,
         {
           if (file.exists("cache/sdds_devices.csv")) {
-            unlink("cache/sdds_devices.csv")
+            #unlink("cache/sdds_devices.csv")
           }
         },
         priority = 100
@@ -422,7 +457,7 @@ sdds_server <- function(
       {
         req(devices$table_exists())
         shinyjs::toggle(
-          "structures_box",
+          "structures_div",
           condition = devices$has_data() &&
             !is_empty(devices$get_selected_ids())
         )

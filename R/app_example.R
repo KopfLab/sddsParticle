@@ -49,9 +49,41 @@ example_ui <- function(timezone) {
         selected = timezone
       ) |>
         shinydashboard::box(title = "Timezone"),
-      sdds_ui(
-        "sdds",
-        device_list_title = "My devices"
+
+      # devices
+      shinydashboard::box(
+        title = span(
+          "SDDS Devices",
+          div(
+            style = "position: absolute; right: 50px; top: 5px;",
+            sdds_ui_devices_actions("sdds"),
+          )
+        ),
+        width = 12,
+        status = "info",
+        solidHeader = TRUE,
+        collapsible = TRUE,
+        sdds_ui_devices_table("sdds"),
+        footer = tagList("Select the devices you want to work with.")
+      ),
+
+      # SDDS structure
+      sdds_ui_structures_div(
+        id = "sdds",
+        shinydashboard::box(
+          title = span(
+            "Data structures",
+            div(
+              style = "position: absolute; right: 10px; top: 5px;",
+              sdds_ui_structures_actions("sdds")
+            )
+          ),
+          width = 12,
+          status = "info",
+          solidHeader = TRUE,
+          sdds_ui_structures_table("sdds"),
+          footer = tagList("Click to change values (if allowed).")
+        )
       )
     )
   }
