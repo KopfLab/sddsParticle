@@ -1,7 +1,7 @@
 # value editing module =========
 
 # make unique input id
-uid <- function(gui_id, coreid) sprintf("%s-%s", gui_id, coreid)
+uid <- function(gui_id, input_id) sprintf("%s-%s", gui_id, input_id)
 
 # tag input with value change class
 add_value_changed_class_to_input <- function(id, delay = NULL) {
@@ -25,7 +25,14 @@ generate_standard_input_row <- function(
 ) {
   fluidRow(
     column(width = widths[1], tags$div(style = "margin-top: 5px;", label)),
-    column(width = widths[2], widget),
+    if (is(widget, "shiny.tag")) {
+      column(width = widths[2], widget)
+    } else {
+      column(
+        width = widths[2],
+        tags$div(style = "margin-top: 5px;", tags$strong(widget))
+      )
+    },
     if (is(units, "shiny.tag")) {
       column(width = widths[3], units)
     } else if (!is.na(units) && is.character(units) && nzchar(units)) {
@@ -72,7 +79,7 @@ input_module <- function(
       gui_id = 0L,
       observer = NULL,
       active = FALSE,
-      coreids = character(),
+      input_ids = character(),
       units = character(),
       original = list(),
       inputs = list(),
@@ -86,7 +93,7 @@ input_module <- function(
       }
       rv$observer <- NULL
       rv$active <- FALSE
-      rv$coreids <- character()
+      rv$input_ids <- character()
       rv$original <- list()
       rv$inputs <- list()
       rv$changed <- logical()
@@ -96,12 +103,12 @@ input_module <- function(
     activate <- function() {
       # register inputs observer
       rv$observer <- observe({
-        req(!is_empty(rv$coreids))
+        req(!is_empty(rv$input_ids))
         # get inputs
         rv$inputs <-
-          uid(isolate(rv$gui_id), rv$coreids) |>
+          uid(isolate(rv$gui_id), rv$input_ids) |>
           purrr::map(fetch_input, ui_inputs = input) |>
-          set_names(rv$coreids)
+          set_names(rv$input_ids)
       })
     }
 
@@ -111,44 +118,44 @@ input_module <- function(
     })
 
     # return the input value for the core id
-    get_input <- function(coreid) rv$inputs[[coreid]]
+    get_input <- function(input_id) rv$inputs[[input_id]]
 
     # return the value for the core id (parsing the input)
-    get_value <- function(coreid, if_changed = TRUE) {
+    get_value <- function(input_id, if_changed = TRUE) {
       # is the value NULL or has not changed?
-      curr_input <- get_input(coreid)
+      curr_input <- get_input(input_id)
       if (
-        (if_changed && !rv$changed[[coreid]]) ||
-          is.null(curr_input) ||
-          all(purrr::map_lgl(curr_input, is.null))
+        is.null(curr_input) ||
+          all(purrr::map_lgl(curr_input, is.null)) ||
+          (if_changed && !rv$changed[[input_id]])
       ) {
         return(NULL)
       }
-      input_to_value(input = curr_input, rv$units[[coreid]])
+      input_to_value(input = curr_input, rv$units[[input_id]])
     }
 
     # return the text for the core id (parsing the value)
-    get_text <- function(coreid, units = NA_character_, if_changed = TRUE) {
-      value <- get_value(coreid, if_changed)
+    get_text <- function(input_id, units = NA_character_, if_changed = TRUE) {
+      value <- get_value(input_id, if_changed)
       if (is.null(value)) {
         return(NA_character_)
       }
       value_to_text(value = value, units = units)
     }
 
-    # copy input from one coreid to all others
+    # copy input from one input_id to all others
     # unless core id is supplied, copies from the first one that has changes
-    copy_input <- function(from_coreid = NULL) {
-      if (!is.null(from_coreid) || has_changed_inputs()) {
-        if (is.null(from_coreid)) {
-          from_coreid <- names(rv$changed)[rv$changed][1]
+    copy_input <- function(from_input_id = NULL) {
+      if (!is.null(from_input_id) || has_changed_inputs()) {
+        if (is.null(from_input_id)) {
+          from_input_id <- names(rv$changed)[rv$changed][1]
         }
-        from_input <- get_input(from_coreid)
+        from_input <- get_input(from_input_id)
         if (!is.null(from_input) || !any(purrr::map_lgl(from_input, is.null))) {
           # make the updates
           purrr::walk(
-            rv$coreids,
-            ~ if (.x != from_coreid) {
+            rv$input_ids,
+            ~ if (.x != from_input_id) {
               # update
               update_input(
                 session = session,
@@ -164,39 +171,39 @@ input_module <- function(
     }
 
     # update inputs if they are incorrect
-    update_incorrect_inputs <- function(coreid, input, corrected) {
+    update_incorrect_inputs <- function(input_id, input, corrected) {
       if (!identical(input, corrected)) {
         update_input(
           session = session,
-          id = uid(rv$gui_id, coreid),
+          id = uid(rv$gui_id, input_id),
           input = corrected
         )
       }
     }
 
     # flag only first time
-    flag_input_first_time <- function(coreid, delay = NULL) {
-      if (!rv$changed[[coreid]]) {
+    flag_input_first_time <- function(input_id, delay = NULL) {
+      if (!rv$changed[[input_id]]) {
         # first time change --> flag
-        flag_input_changed(ns(uid(rv$gui_id, coreid)), delay = delay)
-        rv$changed[[coreid]] <- TRUE
+        flag_input_changed(ns(uid(rv$gui_id, input_id)), delay = delay)
+        rv$changed[[input_id]] <- TRUE
       }
     }
 
     # flag inputs if they have changed (based on corrected value)
-    flag_changed_inputs <- function(coreid, corrected) {
+    flag_changed_inputs <- function(input_id, corrected) {
       if (
         !is.null(corrected) &&
-          !compare_input(rv$original[[coreid]], corrected)
+          !compare_input(rv$original[[input_id]], corrected)
       ) {
-        flag_input_first_time(coreid)
+        flag_input_first_time(input_id)
       }
     }
 
     # monitor inputs
     observeEvent(rv$inputs, {
       req(!is_empty(rv$inputs))
-      current_inputs <- rv$inputs[rv$coreids]
+      current_inputs <- rv$inputs[rv$input_ids]
 
       # run error checking
       corrected_inputs <-
@@ -211,13 +218,13 @@ input_module <- function(
 
       # update inputs if corrections are necessary
       purrr::pwalk(
-        list(rv$coreids, current_inputs, corrected_inputs),
+        list(rv$input_ids, current_inputs, corrected_inputs),
         update_incorrect_inputs
       )
 
       # figure out if value has changed and flag them if so
       purrr::pwalk(
-        list(rv$coreids, corrected_inputs),
+        list(rv$input_ids, corrected_inputs),
         flag_changed_inputs
       )
     })
@@ -225,14 +232,15 @@ input_module <- function(
     # generate the edit user interface
     generate_ui <- function(
       gui_id,
-      coreid,
+      input_id,
       value,
+      text,
       units,
       ...,
       changed = FALSE
     ) {
       # info message
-      format_inline("generating edit UI #{gui_id} for {coreid}") |>
+      format_inline("generating edit UI #{gui_id} for {input_id}") |>
         log_debug(ns = ns)
 
       # store unique gui id if it changed
@@ -240,23 +248,24 @@ input_module <- function(
         rv$gui_id <- gui_id
       }
 
-      # keep track of coreids rendered by this module
-      if (!coreid %in% rv$coreids) {
-        rv$coreids <- c(rv$coreids, coreid)
+      # keep track of input_ids rendered by this module
+      if (!input_id %in% rv$input_ids) {
+        rv$input_ids <- c(rv$input_ids, input_id)
       }
 
       # keep track of original input
-      rv$original[[coreid]] <- value_to_input(value, units)
-      rv$units[[coreid]] <- units
-      rv$changed[[coreid]] <- FALSE
+      rv$original[[input_id]] <- value_to_input(value, units)
+      rv$units[[input_id]] <- units
+      rv$changed[[input_id]] <- FALSE
       if (changed) {
-        flag_input_first_time(coreid, delay = 1000)
+        flag_input_first_time(input_id, delay = 1000)
       }
 
       # generate UI
       make_gui(
-        id = ns(uid(rv$gui_id, coreid)),
-        input = rv$original[[coreid]],
+        id = ns(uid(rv$gui_id, input_id)),
+        input = rv$original[[input_id]],
+        text = text, # usually not used
         units = units,
         changed = changed,
         ...
@@ -349,6 +358,17 @@ value_null_input <- function(id) {
     value_to_text = null_value_to_text,
     make_gui = function(label, ...) {
       generate_standard_input_row(label, null_value_to_text())
+    }
+  )
+}
+
+# read-only input
+value_read_only_input <- function(id) {
+  input_module(
+    id = id,
+    value_to_text = text_value_to_text,
+    make_gui = function(label, text, ...) {
+      generate_standard_input_row(label, text, "(read-only)")
     }
   )
 }

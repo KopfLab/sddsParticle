@@ -218,6 +218,7 @@ sdds_server <- function(
       show_hardware = FALSE,
       edit_structure = tibble(),
       edit_changed = FALSE,
+      edit_publishing_structure = tibble(),
       command_queue = tibble(),
       selected_core_ids = c()
     )
@@ -522,6 +523,7 @@ sdds_server <- function(
     # editing modules
     edit_modules <- list(
       "null" = value_null_input("null"),
+      "read_only" = value_read_only_input("read_only"),
       "integer" = value_integer_input("integer"),
       "double" = value_double_input("double"),
       "enum" = value_enum_input("enum"),
@@ -533,11 +535,26 @@ sdds_server <- function(
     )
 
     # editing modal dialog
-    edit_modal_widgets <- reactiveVal()
+    edit_modal_values_widgets <- reactiveVal()
+    edit_modal_publishing_widgets <- reactiveVal()
     edit_modal <-
       modalDialog(
         title = h3(textOutput(ns("edit_path"))),
-        uiOutput(ns("edit_widgets")),
+        tabsetPanel(
+          id = ns("edit_tabs"),
+          tabPanel(
+            title = "Values",
+            value = "values",
+            br(),
+            uiOutput(ns("edit_widgets"))
+          ),
+          tabPanel(
+            title = "Publishing",
+            value = "publishing",
+            br(),
+            uiOutput(ns("edit_publishing_widgets"))
+          )
+        ),
         footer = tagList(
           actionButton(
             ns("copy_to_all"),
@@ -579,8 +596,12 @@ sdds_server <- function(
       structures$get_selected_ids()
     })
     output$edit_widgets <- renderUI({
-      req(edit_modal_widgets())
-      edit_modal_widgets()
+      req(edit_modal_values_widgets())
+      edit_modal_values_widgets()
+    })
+    output$edit_publishing_widgets <- renderUI({
+      req(edit_modal_publishing_widgets())
+      edit_modal_publishing_widgets()
     })
 
     # edit structure function
@@ -599,16 +620,6 @@ sdds_server <- function(
         return()
       }
 
-      # read only?
-      if (all(structure$readonly)) {
-        values$edit_structure <- tibble()
-        log_info(
-          ns = ns,
-          user_msg = sprintf("'%s' is read-only", path)
-        )
-        return()
-      }
-
       # overwrite existing value?
       if (!is.null(value)) {
         new_value <- value
@@ -623,14 +634,31 @@ sdds_server <- function(
           )
       }
 
+      # safely get publishing structure
+      out <- get_structures() |>
+        get_structures_for_path_in_app(
+          path = paste0("SYSTEM.publishing.varIntervals_ms.", path)
+        ) |>
+        try_catch_cnds()
+      out |> log_cnds(ns = ns)
+      publishing_structure <- out$result
+      if (is_empty(publishing_structure) || nrow(publishing_structure) == 0) {
+        publishing_structure <- NULL
+      }
+
       # keep track of edit structure
       values$edit_structure <- structure
       values$edit_changed <- flag_as_changed
+      values$edit_publishing_structure <- publishing_structure
 
       # safely generate edit ui fields
       modal_session_id(modal_session_id() + 1)
-      out <- structure |>
+      out <-
         prepare_edit_ui_in_app(
+          structures = list(
+            "values" = structure,
+            "publishing" = publishing_structure
+          ),
           gui_id = modal_session_id(),
           edit_modules = edit_modules,
           changed = flag_as_changed
@@ -642,7 +670,8 @@ sdds_server <- function(
       }
 
       # assign widgets
-      edit_modal_widgets(out$result)
+      edit_modal_values_widgets(out$result$values)
+      edit_modal_publishing_widgets(out$result$publishing)
       edit_modal |> showModal()
     }
 
@@ -658,7 +687,7 @@ sdds_server <- function(
 
     # check if there are any changes
     observe({
-      req(edit_modal_widgets())
+      req(edit_modal_values_widgets())
       has_changes <- purrr::map_lgl(edit_modules, ~ .x$has_changes())
       if (isolate(values$edit_changed)) {
         shinyjs::toggleState("copy_to_all", condition = any(has_changes)) |>
@@ -684,24 +713,37 @@ sdds_server <- function(
 
     # copy to all event
     observeEvent(input$copy_to_all, {
-      req(edit_modal_widgets())
+      req(edit_modal_values_widgets())
       purrr::walk(edit_modules, ~ .x$copy_input())
     })
 
     # add to command queue, returns the row_ids of the new commands
     add_to_queue <- function() {
       # safely prepare new values
-      out <-
+      out_values <-
         values$edit_structure |>
-        prepare_new_values_in_app(edit_modules = edit_modules) |>
+        prepare_new_values_in_app(
+          prefix = "values",
+          edit_modules = edit_modules
+        ) |>
+        try_catch_cnds()
+
+      # savely prepare new publish intervals
+      out_publishing <-
+        values$edit_publishing_structure |>
+        prepare_new_values_in_app(
+          prefix = "publishing",
+          edit_modules = edit_modules
+        ) |>
         try_catch_cnds()
 
       # close model dialog
       removeModal()
 
       # check for issues
-      out |> log_cnds(ns = ns)
-      new_values <- out$result
+      out_values |> log_cnds(ns = ns)
+      out_publishing |> log_cnds(ns = ns)
+      new_values <- bind_rows(out_values$result, out_publishing$result)
       if (is.null(new_values) || nrow(new_values) == 0) {
         return()
       }

@@ -117,6 +117,8 @@ get_structures_for_table_in_app <- function(
       filter(!stringr::str_detect(.data$path, "^HARDWARE"))
   }
   structs |>
+    # var interval is shown with the structure edit boxes, not on its own
+    filter(!.data$is_var_interval) |>
     prepare_simplified_tree_w_values_for_table() |>
     rename(" " = "label")
 }
@@ -265,61 +267,97 @@ get_structures_for_path_in_app <- function(structures, path) {
 }
 
 prepare_edit_ui_in_app <- function(
-  structure,
+  structures,
   gui_id,
   edit_modules,
   changed = FALSE
 ) {
+  # safety checks
+  structures |>
+    check_arg(
+      !missing(structures) &&
+        is.list(structures) &&
+        all(have_name(structures)),
+      "must be a named list of structure tibbles"
+    )
+
   # reset modules
   edit_modules |> purrr::walk(~ .x$reset())
-  # generate widgets
-  widgets <- structure |>
-    mutate(
-      ui = purrr::pmap(
-        list(
-          type = .data$type,
-          coreid = .data$coreid,
-          label = .data$corename,
-          value = .data$value,
-          units = .data$base_units,
-          choices = .data$enum_values
-        ),
-        function(type, coreid, label, value, units, choices) {
-          if (!type %in% names(edit_modules)) {
-            return(generate_standard_input_row(
-              label,
-              sprintf("unsupported value type '%s'", type)
+
+  # create set of widgets for structures
+  generate_widgets_set <- function(structure, prefix) {
+    if (is.null(structure) || nrow(structure) == 0) {
+      return(tagList())
+    }
+    structure |>
+      mutate(
+        ui = purrr::pmap(
+          list(
+            type = .data$type,
+            input_id = paste0(prefix, .data$coreid),
+            label = .data$corename,
+            value = .data$value,
+            text = .data$text,
+            read_only = .data$readonly,
+            units = .data$base_units,
+            choices = .data$enum_values
+          ),
+          function(
+            type,
+            input_id,
+            label,
+            value,
+            text,
+            read_only,
+            units,
+            choices
+          ) {
+            if (read_only) {
+              type <- "read_only"
+            }
+            if (!type %in% names(edit_modules)) {
+              return(generate_standard_input_row(
+                label,
+                sprintf("unsupported value type '%s'", type)
+              ))
+            }
+            # generate the ui
+            return(edit_modules[[type]]$generate_ui(
+              gui_id = gui_id,
+              input_id = input_id,
+              label = label,
+              value = value,
+              text = text,
+              units = units,
+              choices = choices,
+              changed = changed
             ))
           }
-          return(edit_modules[[type]]$generate_ui(
-            gui_id = gui_id,
-            coreid = coreid,
-            label = label,
-            value = value,
-            units = units,
-            choices = choices,
-            changed = changed
-          ))
-        }
-      )
-    ) |>
-    pull(.data$ui) |>
-    tagList()
+        )
+      ) |>
+      pull(.data$ui) |>
+      tagList()
+  }
+
+  # generate widgets
+  widgets <- structures |>
+    purrr::map2(names(structures), generate_widgets_set)
+
   # activate modules
   edit_modules |> purrr::walk(~ .x$activate())
   return(widgets)
 }
 
-prepare_new_values_in_app <- function(structure, edit_modules) {
+prepare_new_values_in_app <- function(structure, prefix, edit_modules) {
   structure |>
     mutate(
       new_value = purrr::pmap(
-        list(type = .data$type, coreid = .data$coreid),
-        function(type, coreid) {
+        list(type = .data$type, ui_id = paste0(prefix, .data$coreid)),
+        function(type, ui_id) {
           if (!type %in% names(edit_modules)) {
             return(NULL)
           }
-          return(edit_modules[[type]]$get_value(coreid))
+          return(edit_modules[[type]]$get_value(ui_id))
         }
       ),
       has_changed = !purrr::map_lgl(.data$new_value, is.null)
@@ -329,14 +367,14 @@ prepare_new_values_in_app <- function(structure, edit_modules) {
       new_text = purrr::pmap_chr(
         list(
           type = .data$type,
-          coreid = .data$coreid,
+          ui_id = paste0(prefix, .data$coreid),
           units = .data$base_units
         ),
-        function(type, coreid, units) {
+        function(type, ui_id, units) {
           if (!type %in% names(edit_modules)) {
             return(NA_character_)
           }
-          return(edit_modules[[type]]$get_text(coreid, units))
+          return(edit_modules[[type]]$get_text(ui_id, units))
         }
       )
     )
