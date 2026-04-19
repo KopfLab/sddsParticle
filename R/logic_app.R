@@ -105,9 +105,33 @@ get_missing_trees_in_app <- function(structs) {
 # get structures table in app
 get_structures_for_table_in_app <- function(
   structs,
+  show_publishing,
   show_system,
   show_hardware
 ) {
+  if (show_publishing) {
+    publish_intervals <- structs |>
+      filter(.data$is_var_interval) |>
+      mutate(
+        path = .data$path |>
+          stringr::str_remove(stringr::fixed(
+            "SYSTEM.publishing.varIntervals_ms."
+          ))
+      ) |>
+      select("coreid", "path", "interval" = "text")
+    structs <- structs |>
+      left_join(publish_intervals, by = c("coreid", "path")) |>
+      mutate(
+        text = if_else(
+          !is.na(.data$interval),
+          sprintf("%s -> publish: %s", .data$text, .data$interval),
+          .data$text
+        )
+      )
+  }
+
+  # var interval is shown with the structure edit boxes, not on its own
+  structs <- structs |> filter(!.data$is_var_interval)
   if (!show_system) {
     structs <- structs |>
       filter(!stringr::str_detect(.data$path, "^SYSTEM"))
@@ -117,8 +141,6 @@ get_structures_for_table_in_app <- function(
       filter(!stringr::str_detect(.data$path, "^HARDWARE"))
   }
   structs |>
-    # var interval is shown with the structure edit boxes, not on its own
-    filter(!.data$is_var_interval) |>
     prepare_simplified_tree_w_values_for_table() |>
     rename(" " = "label")
 }

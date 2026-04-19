@@ -50,6 +50,15 @@ sdds_ui_structures_actions <- function(id) {
   ns <- NS(id)
   tagList(
     actionButton(
+      ns("show_hide_publishing"),
+      textOutput(ns("publishing_label"), inline = TRUE),
+      icon = icon("upload"),
+      style = "border: 0;"
+    ) |>
+      add_tooltip(
+        "Show/hide the publishing settings for each variable."
+      ),
+    actionButton(
       ns("show_hide_system"),
       textOutput(ns("system_label"), inline = TRUE),
       icon = icon("house"),
@@ -214,6 +223,7 @@ sdds_server <- function(
     # reactive values =======
     values <- reactiveValues(
       refresh_devices = 0,
+      show_publishing = FALSE,
       show_system = FALSE,
       show_hardware = FALSE,
       edit_structure = tibble(),
@@ -409,6 +419,7 @@ sdds_server <- function(
       # safely call function
       out <- get_structures() |>
         get_structures_for_table_in_app(
+          show_publishing = values$show_publishing,
           show_system = values$show_system,
           show_hardware = values$show_hardware
         ) |>
@@ -472,6 +483,16 @@ sdds_server <- function(
     )
 
     ## show/hide buttons
+    observeEvent(input$show_hide_publishing, {
+      values$show_publishing <- !values$show_publishing
+    })
+    output$publishing_label <- renderText({
+      if (!values$show_publishing) {
+        "Show publishing"
+      } else {
+        "Hide publishing"
+      }
+    })
     observeEvent(input$show_hide_system, {
       values$show_system <- !values$show_system
     })
