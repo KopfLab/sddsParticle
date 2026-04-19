@@ -19,7 +19,7 @@ add_value_changed_class_to_input <- function(id, delay = NULL) {
 # standard input row
 generate_standard_input_row <- function(
   label,
-  widget,
+  widget = NA_character_,
   units = NA_character_,
   widths = c(4, 4, 4)
 ) {
@@ -27,7 +27,7 @@ generate_standard_input_row <- function(
     column(width = widths[1], tags$div(style = "margin-top: 5px;", label)),
     if (is(widget, "shiny.tag")) {
       column(width = widths[2], widget)
-    } else {
+    } else if (!is.na(widget) && is.character(widget) && nzchar(widget)) {
       column(
         width = widths[2],
         tags$div(style = "margin-top: 5px;", tags$strong(widget))

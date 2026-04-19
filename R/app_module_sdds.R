@@ -729,21 +729,26 @@ sdds_server <- function(
         try_catch_cnds()
 
       # savely prepare new publish intervals
-      out_publishing <-
-        values$edit_publishing_structure |>
-        prepare_new_values_in_app(
-          prefix = "publishing",
-          edit_modules = edit_modules
-        ) |>
-        try_catch_cnds()
+      if (!is.null(values$edit_publishing_structure)) {
+        out_publishing <-
+          values$edit_publishing_structure |>
+          prepare_new_values_in_app(
+            prefix = "publishing",
+            edit_modules = edit_modules
+          ) |>
+          try_catch_cnds()
+      }
 
       # close model dialog
       removeModal()
 
       # check for issues
       out_values |> log_cnds(ns = ns)
-      out_publishing |> log_cnds(ns = ns)
-      new_values <- bind_rows(out_values$result, out_publishing$result)
+      new_values <- out_values$result
+      if (!is.null(values$edit_publishing_structure)) {
+        out_publishing |> log_cnds(ns = ns)
+        new_values <- new_values |> bind_rows(out_publishing$result)
+      }
       if (is.null(new_values) || nrow(new_values) == 0) {
         return()
       }

@@ -287,7 +287,7 @@ prepare_edit_ui_in_app <- function(
   # create set of widgets for structures
   generate_widgets_set <- function(structure, prefix) {
     if (is.null(structure) || nrow(structure) == 0) {
-      return(tagList())
+      return(generate_standard_input_row("no settings available"))
     }
     structure |>
       mutate(
