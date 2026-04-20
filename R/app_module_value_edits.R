@@ -5,7 +5,6 @@ uid <- function(gui_id, input_id) sprintf("%s-%s", gui_id, input_id)
 
 # tag input with value change class
 add_value_changed_class_to_input <- function(id, delay = NULL) {
-  # shinyjs::addClass(id = id, class = "value-changed") # does not seem to work for all input types
   js <- format_inline(
     "document.querySelector('#{id}').closest('.form-group').classList.add('value-changed');"
   )

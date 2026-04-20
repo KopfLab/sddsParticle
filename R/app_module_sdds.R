@@ -551,7 +551,7 @@ sdds_server <- function(
       "text" = value_text_input("text"),
       "duration" = value_duration_input("duration"),
       "byte" = value_byte_input("byte"),
-      "var_interval" = value_var_intervals_input("var_interal"),
+      "var_interval" = value_var_intervals_input("var_interval"),
       # TODO: move ot micrologger
       "resistance" = value_resistance_input("resistance")
     )
@@ -683,7 +683,7 @@ sdds_server <- function(
           ),
           gui_id = modal_session_id(),
           edit_modules = edit_modules,
-          changed = flag_as_changed
+          changed = c(flag_as_changed, FALSE)
         ) |>
         try_catch_cnds()
       out |> log_cnds(ns = ns)

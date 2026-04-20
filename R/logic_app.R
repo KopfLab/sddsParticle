@@ -205,14 +205,15 @@ request_sdds_values_in_app <- function(devices, core_ids, token) {
 request_sdds_trees_in_app <- function(devices, core_ids, token) {
   devices |>
     filter(.data$coreid %in% core_ids) |>
-    select("coreid", "name") |>
+    select("coreid", "name", "connected") |>
     mutate(
       success = .data$coreid |>
-        purrr::map_lgl(
-          ~ identical(
+        purrr::map2_lgl(
+          .data$connected,
+          ~ if (.y) identical(
             particle_request_sdds(.x, token = token)$return_value,
             0L
-          )
+          ) else FALSE
         )
     )
 }
@@ -307,7 +308,7 @@ prepare_edit_ui_in_app <- function(
   edit_modules |> purrr::walk(~ .x$reset())
 
   # create set of widgets for structures
-  generate_widgets_set <- function(structure, prefix) {
+  generate_widgets_set <- function(structure, prefix, changed) {
     if (is.null(structure) || nrow(structure) == 0) {
       return(generate_standard_input_row("no settings available"))
     }
@@ -362,8 +363,15 @@ prepare_edit_ui_in_app <- function(
   }
 
   # generate widgets
-  widgets <- structures |>
-    purrr::map2(names(structures), generate_widgets_set)
+  widgets <- 
+    purrr::pmap(
+      list(
+        structure = structures,
+        prefix = names(structures),
+        changed = changed
+      ),
+      generate_widgets_set
+    )
 
   # activate modules
   edit_modules |> purrr::walk(~ .x$activate())
