@@ -563,6 +563,43 @@ value_var_intervals_input <- function(id) {
   )
 }
 
+# byte input
+byte_value_to_input <- function(value, units) {
+  if (value > 1024 * 1024) {
+    list(v = value / 1024 / 1024, u = "MB")
+  } else if (value > 1024) {
+    list(v = value / 1024, u = "KB")
+  } else {
+    list(v = value, u = "byte")
+  }
+}
+
+byte_input_to_value <- function(input, units) {
+  if (input$u == "MB") {
+    input$v * 1024*1024
+  } else if (input$u == "KB") {
+    input$v * 1024
+  } else {
+    input$v
+  }
+}
+
+byte_value_to_text <- function(value, units) {
+  input <- byte_value_to_input(value, units)
+  paste(signif(input$v, 3), input$u)
+}
+
+value_byte_input <- function(id) {
+  input_module_selectable_units(
+    id = id,
+    value_to_input = byte_value_to_input,
+    input_to_value = byte_input_to_value,
+    value_to_text = byte_value_to_text,
+    units_options = c("byte", "KB", "MB")
+  )
+}
+
+
 # TODO: move the resistance functionliaty into microloger only
 resistance_value_to_input <- function(value, units) {
   if (value > 1e6) {

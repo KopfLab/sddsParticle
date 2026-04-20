@@ -550,6 +550,7 @@ sdds_server <- function(
       "enum" = value_enum_input("enum"),
       "text" = value_text_input("text"),
       "duration" = value_duration_input("duration"),
+      "byte" = value_byte_input("byte"),
       "var_interval" = value_var_intervals_input("var_interal"),
       # TODO: move ot micrologger
       "resistance" = value_resistance_input("resistance")

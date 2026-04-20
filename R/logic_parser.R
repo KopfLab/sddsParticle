@@ -517,6 +517,7 @@ sdds_simplify_trees_and_values <- function(
     "var_interval" = expr(.data$is_var_interval),
     "datetime" = expr(.data$base_units == "dt"),
     "duration" = expr(.data$base_units %in% names(.duration_converter)),
+    "byte" = expr(.data$base_units == "byte"),
     "version" = expr(.data$is_int & .data$name == "version"),
     "integer" = expr(.data$is_int),
     "double" = expr(.data$is_dbl),
@@ -542,6 +543,7 @@ sdds_simplify_trees_and_values <- function(
         format("%b %d %Y %H:%M:%S")
     },
     "duration" = duration_value_to_text,
+    "byte" = byte_value_to_text,
     "version" = version_value_to_text,
     "integer" = integer_value_to_text,
     "double" = double_value_to_text,
