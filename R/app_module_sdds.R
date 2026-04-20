@@ -241,7 +241,7 @@ sdds_server <- function(
         values$refresh_devices,
         {
           if (file.exists("cache/sdds_devices.csv")) {
-            #unlink("cache/sdds_devices.csv")
+            unlink("cache/sdds_devices.csv")
           }
         },
         priority = 100
