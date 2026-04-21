@@ -5,9 +5,7 @@
 \title{Selector table server}
 \usage{
 module_selector_table_server(
-  input,
-  output,
-  session,
+  id,
   get_data,
   id_column,
   available_columns = list(dplyr::across(dplyr::everything(), identity)),
@@ -30,6 +28,8 @@ module_selector_table_server(
   editable = FALSE,
   extensions = list(),
   no_data_message = "No data available",
+  scrollX = FALSE,
+  scrollY = FALSE,
   ...
 )
 }
@@ -68,7 +68,11 @@ module_selector_table_server(
 
 \item{formatting_calls}{list of lists with function and columns e.g. list(list(func = formatCurrency, columns = "x)) or a columns expressione.g. list(list(func = formatCurrencty, columns_expr = rlang::expr(matches("abc"))))}
 
-\item{...}{passed to options}
+\item{scrollX}{FALSE/TRUE to disable/enable horizontal scrolling, default is TRUE}
+
+\item{scrollY}{FALSE/TRUE/"200px"/"calc(100vh - 200px)"/"max(400px, calc(100vh - 200px))" - vertical scrolling rules, default is FALSE}
+
+\item{...}{additional dat table options (https://datatables.net/reference/option/) passed to options}
 }
 \description{
 Selector table server
