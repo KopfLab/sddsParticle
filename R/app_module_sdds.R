@@ -14,11 +14,8 @@ sdds_ui_devices_actions <- function(id) {
       ns("refresh_devices"),
       "Refresh",
       icon = icon("arrows-rotate"),
-      style = "border: 0;"
     ) |>
-      add_tooltip(
-        "Refresh device list."
-      ),
+      add_tooltip("Refresh device list."),
     module_selector_table_select_all_button(
       ns("devices"),
       border = FALSE
@@ -50,32 +47,15 @@ sdds_ui_structures_actions <- function(id) {
   ns <- NS(id)
   tagList(
     actionButton(
-      ns("show_hide_publishing"),
-      textOutput(ns("publishing_label"), inline = TRUE),
-      icon = icon("upload"),
+      ns("fetch_values"),
+      "Request data",
+      icon = icon("cloud-arrow-down"),
       style = "border: 0;"
     ) |>
       add_tooltip(
-        "Show/hide the publishing settings for each variable."
-      ),
-    actionButton(
-      ns("show_hide_system"),
-      textOutput(ns("system_label"), inline = TRUE),
-      icon = icon("house"),
-      style = "border: 0;"
-    ) |>
-      add_tooltip(
-        "Show/hide the HARDWARE menu items."
-      ),
-    actionButton(
-      ns("show_hide_hardware"),
-      textOutput(ns("hardware_label"), inline = TRUE),
-      icon = icon("microchip"),
-      style = "border: 0;"
-    ) |>
-      add_tooltip(
-        "Show/hide the HARDWARE menu items."
-      ),
+        "Request latest structure from devices."
+      ) |>
+      shinyjs::disabled(),
     actionButton(
       ns("send_commands"),
       "Send queue",
@@ -94,7 +74,8 @@ sdds_ui_structures_actions <- function(id) {
     ) |>
       add_tooltip(
         "Show latest commands sent to devices."
-      ),
+      ) |>
+      shinyjs::disabled(),
     actionButton(
       ns("events_stream"),
       "Show events",
@@ -103,16 +84,38 @@ sdds_ui_structures_actions <- function(id) {
     ) |>
       add_tooltip(
         "Show events sent by the selected devices."
-      ),
+      ) |>
+      shinyjs::disabled(),
     actionButton(
-      ns("fetch_values"),
-      "Request data",
-      icon = icon("cloud-arrow-down"),
+      ns("show_hide_publishing"),
+      textOutput(ns("publishing_label"), inline = TRUE),
+      icon = icon("upload"),
       style = "border: 0;"
     ) |>
       add_tooltip(
-        "Request latest structure from devices."
-      )
+        "Show/hide the publishing settings for each variable."
+      ) |>
+      shinyjs::disabled(),
+    actionButton(
+      ns("show_hide_system"),
+      textOutput(ns("system_label"), inline = TRUE),
+      icon = icon("house"),
+      style = "border: 0;"
+    ) |>
+      add_tooltip(
+        "Show/hide the HARDWARE menu items."
+      ) |>
+      shinyjs::disabled(),
+    actionButton(
+      ns("show_hide_hardware"),
+      textOutput(ns("hardware_label"), inline = TRUE),
+      icon = icon("microchip"),
+      style = "border: 0;"
+    ) |>
+      add_tooltip(
+        "Show/hide the HARDWARE menu items."
+      ) |>
+      shinyjs::disabled()
   )
 }
 
@@ -172,8 +175,6 @@ sdds_ui <- function(
 sdds_header <- function() {
   tagList(
     shinyjs::useShinyjs(), # enable shinyjs
-    shinytoastr::useToastr(), # enable toaster
-    prompter::use_prompt(), # enable prompter
     use_app_utils(), # enable app utils
     tags$style(HTML(
       "
@@ -288,22 +289,22 @@ sdds_server <- function(
     })
 
     ## setup devices selector table
-    devices <- callModule(
-      module_selector_table_server,
-      "devices",
-      get_data = get_devices_for_table,
-      id_column = "coreid",
-      # make id column invisible
-      columnDefs = list(
-        list(visible = FALSE, targets = 0)
-      ),
-      # view all & scrolling
-      allow_view_all = TRUE,
-      initial_page_length = -1,
-      dom = "ft",
-      scrollX = TRUE,
-      scrollY = "150px"
-    )
+    devices <-
+      module_selector_table_server(
+        "devices",
+        get_data = get_devices_for_table,
+        id_column = "coreid",
+        # make id column invisible
+        columnDefs = list(
+          list(visible = FALSE, targets = 0)
+        ),
+        # view all & scrolling
+        allow_view_all = TRUE,
+        initial_page_length = -1,
+        dom = "ft",
+        scrollX = TRUE,
+        scrollY = "150px"
+      )
 
     # structures =======
 
@@ -341,8 +342,8 @@ sdds_server <- function(
 
     ## get structures
     get_structures <- reactive({
+      # get structures
       req(devices$table_exists())
-
       out <- get_structures_cache()
 
       # log cnds here instead of in the poll
@@ -374,16 +375,16 @@ sdds_server <- function(
         log_info(ns = ns, user_msg = msg)
 
         # safely request trees
-        out <- request_sdds_trees_in_app(
-          devices = get_devices(),
-          core_ids = out$result$coreid,
-          token = token
-        ) |>
+        out <-
+          out$result |>
+          request_sdds_trees_in_app(devices = get_devices(), token = token) |>
           try_catch_cnds()
         out |> log_cnds(ns = ns)
+
         if (!is.null(out$result) && any(!out$result$success)) {
+          missing <- out$result |> filter(!success)
           msg <- format_inline(
-            "Failed to request self-describing data structures (SDDS) from {out$result$name[!out$result$success]}"
+            "Failed to request structural information about {missing$type_version} from {missing$name}"
           )
           log_error(ns = ns, user_msg = msg)
         }
@@ -413,7 +414,16 @@ sdds_server <- function(
     ## structures for table
     get_structures_for_table <- reactive({
       # safety checks
-      validate(need(get_structures(), "No structures available yet."))
+      req(devices$table_exists())
+      validate(need(
+        get_structures(),
+        if (is_empty(isolate(devices$get_selected_ids()))) {
+          "Select a device."
+        } else {
+          "No structures available yet."
+        }
+      ))
+      validate(need(!is_empty(devices$get_selected_ids()), "Select a device."))
 
       structures$reset_visible_columns()
       # safely call function
@@ -426,6 +436,17 @@ sdds_server <- function(
         try_catch_cnds()
       out |> log_cnds(ns = ns)
       return(out$result)
+    })
+
+    ## button availability
+    observeEvent(devices$get_selected_ids(), {
+      device_selected <- !is_empty(devices$get_selected_ids())
+      shinyjs::toggleState("fetch_values", condition = device_selected)
+      shinyjs::toggleState("command_logs", condition = device_selected)
+      shinyjs::toggleState("events_stream", condition = device_selected)
+      shinyjs::toggleState("show_hide_publishing", condition = device_selected)
+      shinyjs::toggleState("show_hide_system", condition = device_selected)
+      shinyjs::toggleState("show_hide_hardware", condition = device_selected)
     })
 
     ## fetch new values
@@ -515,29 +536,29 @@ sdds_server <- function(
     })
 
     ## setup structures selector table
-    structures <- callModule(
-      module_selector_table_server,
-      "structures",
-      get_data = get_structures_for_table,
-      id_column = "path",
-      escape_headers = FALSE, # to render HTML
-      # row grouping
-      extensions = "RowGroup",
-      rowGroup = list(dataSrc = 1),
-      # make path columns invisible
-      columnDefs = list(
-        list(visible = FALSE, targets = 0:1)
-      ),
-      # view all & scrolling
-      allow_view_all = TRUE,
-      initial_page_length = -1,
-      ordering = FALSE,
-      dom = "ft",
-      scrollX = TRUE,
-      scrollY = "max(200px, calc(100vh - 620px))", # account for size of header and devices table with the -x px
-      selection = "single",
-      auto_reselect = FALSE
-    )
+    structures <-
+      module_selector_table_server(
+        "structures",
+        get_data = get_structures_for_table,
+        id_column = "path",
+        escape_headers = FALSE, # to render HTML
+        # row grouping
+        extensions = "RowGroup",
+        rowGroup = list(dataSrc = 1),
+        # make path columns invisible
+        columnDefs = list(
+          list(visible = FALSE, targets = 0:1)
+        ),
+        # view all & scrolling
+        allow_view_all = TRUE,
+        initial_page_length = -1,
+        ordering = FALSE,
+        dom = "ft",
+        scrollX = TRUE,
+        scrollY = "max(200px, calc(100vh - 620px))", # account for size of header and devices table with the -x px
+        selection = "single",
+        auto_reselect = FALSE
+      )
 
     # edit values ===========
 
@@ -588,6 +609,7 @@ sdds_server <- function(
               "Copy the topmost changed value (highlighted in green) to all inputs."
             ) |>
             shinyjs::disabled(),
+          spaces(1),
           actionButton(
             ns("send_now"),
             "Send now",
@@ -598,6 +620,7 @@ sdds_server <- function(
               "Send the commands for the values highlighted in green right now."
             ) |>
             shinyjs::disabled(),
+          spaces(1),
           actionButton(
             ns("add_to_queue"),
             "Add to queue",
@@ -882,6 +905,7 @@ sdds_server <- function(
             "Send the selected commands to the devices."
           ) |>
           shinyjs::disabled(),
+        spaces(1),
         actionButton(
           ns("clear_queue"),
           "Clear all",
@@ -919,23 +943,23 @@ sdds_server <- function(
     })
 
     ## commands queue table
-    queue <- callModule(
-      module_selector_table_server,
-      "queue",
-      get_data = get_command_queue_for_table,
-      id_column = "row_id",
-      # make row_id and coreid columns invisible
-      columnDefs = list(list(visible = FALSE, targets = 0:1)),
-      # view all & scrolling
-      allow_view_all = TRUE,
-      initial_page_length = -1,
-      dom = "ft",
-      scrollX = TRUE,
-      scrollY = "400px",
-      selection = "multiple",
-      auto_reselect = FALSE,
-      ordering = FALSE
-    )
+    queue <-
+      module_selector_table_server(
+        "queue",
+        get_data = get_command_queue_for_table,
+        id_column = "row_id",
+        # make row_id and coreid columns invisible
+        columnDefs = list(list(visible = FALSE, targets = 0:1)),
+        # view all & scrolling
+        allow_view_all = TRUE,
+        initial_page_length = -1,
+        dom = "ft",
+        scrollX = TRUE,
+        scrollY = "400px",
+        selection = "multiple",
+        auto_reselect = FALSE,
+        ordering = FALSE
+      )
 
     ## function to send the commands to one core
     send_commands <- function(coreid, corename, cmds) {
@@ -1166,22 +1190,22 @@ sdds_server <- function(
     })
 
     ## events stream table
-    events <- callModule(
-      module_selector_table_server,
-      "events",
-      get_data = get_stream_events,
-      id_column = "row_id",
-      # make row_id and full data column invisible
-      columnDefs = list(list(visible = FALSE, targets = 0:1)),
-      # view all & scrolling
-      page_lengths = list(
-        c(50, 100, -1),
-        c("50", "100", "All")
-      ),
-      scrollX = TRUE,
-      scrollY = "200px",
-      selection = "single"
-    )
+    events <-
+      module_selector_table_server(
+        "events",
+        get_data = get_stream_events,
+        id_column = "row_id",
+        # make row_id and full data column invisible
+        columnDefs = list(list(visible = FALSE, targets = 0:1)),
+        # view all & scrolling
+        page_lengths = list(
+          c(50, 100, -1),
+          c("50", "100", "All")
+        ),
+        scrollX = TRUE,
+        scrollY = "200px",
+        selection = "single"
+      )
 
     # command logs ==============
 
@@ -1219,23 +1243,25 @@ sdds_server <- function(
     })
 
     ## logs table
-    log <- callModule(
-      module_selector_table_server,
-      "logs",
-      get_data = get_command_logs_for_table,
-      id_column = "row_id",
-      columnDefs = list(list(visible = FALSE, targets = 0)),
-      # view all & scrolling
-      allow_view_all = TRUE,
-      initial_page_length = -1,
-      dom = "ft",
-      scrollX = TRUE,
-      scrollY = "250px",
-      selection = "none"
-    )
+    log <-
+      module_selector_table_server(
+        "logs",
+        get_data = get_command_logs_for_table,
+        id_column = "row_id",
+        columnDefs = list(list(visible = FALSE, targets = 0)),
+        # view all & scrolling
+        allow_view_all = TRUE,
+        initial_page_length = -1,
+        dom = "ft",
+        scrollX = TRUE,
+        scrollY = "250px",
+        selection = "none"
+      )
 
     # return functions ======
     list(
+      devices = devices,
+      structures = structures,
       get_all_devices = get_all_devices,
       refresh_devices = refresh_devices,
       edit_structure = edit_structure

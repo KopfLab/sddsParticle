@@ -546,7 +546,7 @@ module_selector_table_server <- function(
     deselect_all <- function() {
       select_rows(c())
     }
-    observeEvent(input$deselect_all, deselct_all())
+    observeEvent(input$deselect_all, deselect_all())
 
     # set/pick columns event =====
     observeEvent(input$pick_cols, {
