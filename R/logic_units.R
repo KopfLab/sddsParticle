@@ -141,9 +141,9 @@ duration_value_to_text <- function(value, units) {
 .var_intervals_conversion <- tibble(
   value = c(-1L, 0L, 1L, 2L),
   text = c(
-    "average over global interval (if publishing)",
+    "average over global interval (if recording)",
     "never send",
-    "send each change (if publishing)",
+    "send each change (if recording)",
     "send each change (always)"
   )
 )

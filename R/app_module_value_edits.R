@@ -493,7 +493,9 @@ value_var_intervals_input <- function(id) {
         choices = .var_intervals_conversion |>
           select("text", "value") |>
           tibble::deframe() |>
-          c(list("average over individual interval (if publishing)" = "3")),
+          c(list(
+            "average over individual interval (if recording)" = "INDIVIDUAL"
+          )),
         selected = input$s
       )
       individual <- numericInput(
@@ -549,7 +551,7 @@ value_var_intervals_input <- function(id) {
         (input1$s < 3L || (near(input1$v, input2$v) && input1$u == input2$u))
     },
     update_input = function(session, id, input) {
-      shinyjs::toggle(paste0(id, "div"), condition = input$s == "3")
+      shinyjs::toggle(paste0(id, "div"), condition = input$s == "INDIVIDUAL")
       updateSelectInput(session, id, selected = input$s)
       updateNumericInput(session, paste(id, "value"), value = input$v)
       updateSelectInput(session, paste0(id, "units"), selected = input$u)
@@ -575,7 +577,7 @@ byte_value_to_input <- function(value, units) {
 
 byte_input_to_value <- function(input, units) {
   if (input$u == "MB") {
-    input$v * 1024*1024
+    input$v * 1024 * 1024
   } else if (input$u == "KB") {
     input$v * 1024
   } else {
