@@ -202,18 +202,24 @@ request_sdds_values_in_app <- function(devices, core_ids, token) {
   return(out)
 }
 
-request_sdds_trees_in_app <- function(devices, core_ids, token) {
-  devices |>
-    filter(.data$coreid %in% core_ids) |>
-    select("coreid", "name", "connected") |>
+request_sdds_trees_in_app <- function(trees, devices, token) {
+  trees |>
+    left_join(
+      devices |> select("coreid", "name", "connected"),
+      by = "coreid"
+    ) |>
     mutate(
       success = .data$coreid |>
         purrr::map2_lgl(
           .data$connected,
-          ~ if (.y) identical(
-            particle_request_sdds(.x, token = token)$return_value,
-            0L
-          ) else FALSE
+          ~ if (.y) {
+            identical(
+              particle_request_sdds(.x, token = token)$return_value,
+              0L
+            )
+          } else {
+            FALSE
+          }
         )
     )
 }
@@ -363,7 +369,7 @@ prepare_edit_ui_in_app <- function(
   }
 
   # generate widgets
-  widgets <- 
+  widgets <-
     purrr::pmap(
       list(
         structure = structures,
