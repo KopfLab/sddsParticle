@@ -139,7 +139,7 @@ module_selector_table_server <- function(
       return(FALSE)
     }
 
-    # reset visible columns (always isolate, trigger independently!)
+    # reset visible columns (always isolate, trigger independently with render_table()!)
     reset_visible_columns <- function() {
       isolate({
         if (length(values$visible_cols) > 0) {
@@ -161,18 +161,12 @@ module_selector_table_server <- function(
       })
     }
 
-    # triggers
-    observe({
-      get_table_df_visible_cols()
-      values$filter
-      render_table()
-    })
-
     render_html_expr <- rlang::enexpr(render_html)
     output$selection_table <- DT::renderDataTable(
       {
-        # trigger
+        # triggers
         values$render_trigger
+        get_table_df_visible_cols()
 
         # info
         log_info(ns = ns, "(re-) rendering selection table")
@@ -579,6 +573,7 @@ module_selector_table_server <- function(
       showModal(dlg)
     })
     observeEvent(input$apply_cols, {
+      removeModal()
       if (set_visible_columns(input$visible_cols)) {
         log_info(
           ns = ns,
@@ -592,7 +587,6 @@ module_selector_table_server <- function(
           user_msg = "Switching columns"
         )
       }
-      removeModal()
     })
 
     # toggle column search event =====
@@ -604,6 +598,7 @@ module_selector_table_server <- function(
           user_msg = "Enabling column filters"
         )
         values$filter <- "top"
+        render_table()
       } else if (identical(values$filter, "top")) {
         log_info(
           ns = ns,
@@ -611,6 +606,7 @@ module_selector_table_server <- function(
           user_msg = "Disabling column filters"
         )
         values$filter <- "none"
+        render_table()
       }
     })
 
