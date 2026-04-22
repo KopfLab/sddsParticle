@@ -1,3 +1,8 @@
+#' sdds GUI module
+#'
+#' @description SDDS shiny Module.
+#'
+#' @param id module id
 #' @describeIn sdds_module generates the ui for the sdds devices table
 #' @export
 sdds_ui_devices_table <- function(id) {
@@ -43,7 +48,7 @@ sdds_ui_structures_table <- function(id) {
 
 #' @describeIn sdds_module generates the ui for the sdds structures action links
 #' @export
-sdds_ui_structures_actions <- function(id) {
+sdds_ui_structures_actions <- function(id, space = 1) {
   ns <- NS(id)
   tagList(
     actionButton(
@@ -55,6 +60,7 @@ sdds_ui_structures_actions <- function(id) {
         "Request latest structure from devices."
       ) |>
       shinyjs::disabled(),
+    spaces(space),
     actionButton(
       ns("send_commands"),
       "Send queue",
@@ -64,6 +70,7 @@ sdds_ui_structures_actions <- function(id) {
         "Send commands to make the changes."
       ) |>
       shinyjs::disabled(),
+    spaces(space),
     actionButton(
       ns("command_logs"),
       "Fetch logs",
@@ -73,6 +80,7 @@ sdds_ui_structures_actions <- function(id) {
         "Show latest commands sent to devices."
       ) |>
       shinyjs::disabled(),
+    spaces(space),
     actionButton(
       ns("events_stream"),
       "Show events",
@@ -82,6 +90,7 @@ sdds_ui_structures_actions <- function(id) {
         "Show events sent by the selected devices."
       ) |>
       shinyjs::disabled(),
+    spaces(space),
     actionButton(
       ns("show_hide_publishing"),
       textOutput(ns("publishing_label"), inline = TRUE),
@@ -91,6 +100,7 @@ sdds_ui_structures_actions <- function(id) {
         "Show/hide the publishing settings for each variable."
       ) |>
       shinyjs::disabled(),
+    spaces(space),
     actionButton(
       ns("show_hide_system"),
       textOutput(ns("system_label"), inline = TRUE),
@@ -100,6 +110,7 @@ sdds_ui_structures_actions <- function(id) {
         "Show/hide the HARDWARE menu items."
       ) |>
       shinyjs::disabled(),
+    spaces(space),
     actionButton(
       ns("show_hide_hardware"),
       textOutput(ns("hardware_label"), inline = TRUE),
@@ -110,57 +121,6 @@ sdds_ui_structures_actions <- function(id) {
         "Show/hide the HARDWARE menu items."
       ) |>
       shinyjs::disabled()
-  )
-}
-
-#' sdds GUI module
-#'
-#' @description SDDS shiny Module.
-#'
-#' @param id module id
-#' @describeIn sdds_module generates the ui for the sdds module
-#' @export
-sdds_ui <- function(
-  id,
-  device_list_title = "Devices"
-) {
-  ns <- NS(id)
-  tagList(
-    # devices
-    shinydashboard::box(
-      title = span(
-        device_list_title,
-        div(
-          style = "position: absolute; right: 50px; top: 5px;",
-          sdds_ui_devices_actions(id),
-        )
-      ),
-      width = 12,
-      status = "info",
-      solidHeader = TRUE,
-      collapsible = TRUE,
-      sdds_ui_devices_table(id),
-      footer = tagList("Select the devices you want to work with.")
-    ),
-
-    # commands / self-describing data structure
-    sdds_ui_structures_div(
-      id,
-      shinydashboard::box(
-        title = span(
-          "Control Structures",
-          div(
-            style = "position: absolute; right: 10px; top: 5px;",
-            sdds_ui_structures_actions(id)
-          )
-        ),
-        width = 12,
-        status = "info",
-        solidHeader = TRUE,
-        sdds_ui_structures_table(id),
-        footer = tagList("Click to change values (if allowed).")
-      )
-    )
   )
 }
 
@@ -292,12 +252,9 @@ sdds_server <- function(
         columnDefs = list(
           list(visible = FALSE, targets = 0)
         ),
-        # view all & scrolling
-        allow_view_all = TRUE,
-        initial_page_length = -1,
-        dom = "ft",
-        scrollX = TRUE,
-        scrollY = "150px"
+        # view all
+        paging = FALSE,
+        dom = "ft"
       )
 
     # structures =======
@@ -544,12 +501,13 @@ sdds_server <- function(
           list(visible = FALSE, targets = 0:1)
         ),
         # view all & scrolling
-        allow_view_all = TRUE,
-        initial_page_length = -1,
+        paging = FALSE,
+        # allow_view_all = TRUE,
+        # initial_page_length = -1,
         ordering = FALSE,
         dom = "ft",
-        scrollX = TRUE,
-        scrollY = "max(200px, calc(100vh - 620px))", # account for size of header and devices table with the -x px
+        # scrollX = TRUE,
+        # scrollY = "max(200px, calc(100vh - 620px))", # account for size of header and devices table with the -x px
         selection = "single",
         auto_reselect = FALSE
       )

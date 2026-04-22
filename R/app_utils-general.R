@@ -4,19 +4,25 @@
 # call to use app util error formatting
 use_app_utils <- function() {
   tagList(
+    # adopt error color of the theme and make error validation larger
     tags$style(HTML(
-      ".shiny-output-error-validation { color: #b30000; font-size: 150%;}"
+      ".shiny-output-error-validation {
+        color: var(--bs-danger) !important;
+        font-size: 1.5rem;
+      }"
     )) |>
       singleton(),
+    # support ansii
     tags$style(HTML(paste(format(cli::ansi_html_style()), collapse = "\n"))) |>
       singleton(),
+    # make card headings taller
+    tags$style(HTML(".card-header { padding: 1rem 1.25rem;}")) |> singleton(),
+    # preseve spacing of CLI errors that might make it to the gui
     tags$style(HTML(
-      "
-      .cli-inline-error {
+      ".cli-inline-error {
         display: inline;
         white-space: pre-wrap;
-      }
-    "
+      }"
     )) |>
       singleton()
   )
@@ -215,7 +221,7 @@ log_debug <- function(..., ns = NULL) {
 # ui elements ======
 
 # convenience function for adding spaces (not the most elegant way but works)
-spaces <- function(n) {
+spaces <- function(n = 1) {
   htmltools::HTML(rep("&nbsp;", n))
 }
 

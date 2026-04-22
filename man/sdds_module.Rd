@@ -6,7 +6,6 @@
 \alias{sdds_ui_structures_div}
 \alias{sdds_ui_structures_table}
 \alias{sdds_ui_structures_actions}
-\alias{sdds_ui}
 \alias{sdds_header}
 \alias{sdds_server}
 \alias{sdds_onstart}
@@ -20,9 +19,7 @@ sdds_ui_structures_div(id, ...)
 
 sdds_ui_structures_table(id)
 
-sdds_ui_structures_actions(id)
-
-sdds_ui(id, device_list_title = "Devices")
+sdds_ui_structures_actions(id, space = 1)
 
 sdds_header()
 
@@ -51,8 +48,6 @@ SDDS shiny Module.
 \item \code{sdds_ui_structures_table()}: generates the ui for the sdds structures table
 
 \item \code{sdds_ui_structures_actions()}: generates the ui for the sdds structures action links
-
-\item \code{sdds_ui()}: generates the ui for the sdds module
 
 \item \code{sdds_header()}: call in ui head to include
 

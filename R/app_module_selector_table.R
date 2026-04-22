@@ -18,8 +18,7 @@
 #' @param auto_reselect whether to reselect selected rows automatically after reloads
 #' @param render_html list of columns which should NOT be html escaped (e.g. for links), use dplyr::everything() to render everything
 #' @param formatting_calls list of lists with function and columns e.g. list(list(func = formatCurrency, columns = "x)) or a columns expressione.g. list(list(func = formatCurrencty, columns_expr = rlang::expr(matches("abc"))))
-#' @param scrollX FALSE/TRUE to disable/enable horizontal scrolling, default is TRUE
-#' @param scrollY FALSE/TRUE/"200px"/"calc(100vh - 200px)"/"max(400px, calc(100vh - 200px))" - vertical scrolling rules, default is FALSE
+#' @param paging TRUE/FALSE whether to have paging information
 #' @param ... additional dat table options (https://datatables.net/reference/option/) passed to options
 module_selector_table_server <- function(
   id,
@@ -47,8 +46,7 @@ module_selector_table_server <- function(
   editable = FALSE,
   extensions = list(),
   no_data_message = "No data available",
-  scrollX = FALSE,
-  scrollY = FALSE,
+  paging = TRUE,
   ...
   # note: considered allowing editable option but it doesn't work so well for select tables
 ) {
@@ -80,9 +78,7 @@ module_selector_table_server <- function(
       order = list(), # ordering information
       filter = filter, # filter setting
       formatting_calls = formatting_calls, # formatting calls
-      options = list(scrollX = scrollX, scrollY = scrollY, ...), # data table options
-      options_backup = list(), # save options intermittendly
-      in_full_screen = FALSE
+      options = list(paging = paging, ...) # data table options
     )
 
     # create table df =============
@@ -194,7 +190,7 @@ module_selector_table_server <- function(
                 class = class,
                 container = container,
                 selection = selection,
-                #fillContainer = TRUE, # note this is useless inside DT:renderDataTable
+                fillContainer = TRUE,
                 escape = if (
                   rlang::is_call(render_html_expr) &&
                     rlang::call_name(render_html_expr) == "everything"
@@ -347,29 +343,6 @@ module_selector_table_server <- function(
     update_options <- function(...) {
       isolate({
         values$options <- utils::modifyList(values$options, list(...))
-      })
-    }
-
-    # full screen
-    load_full_screen <- function() {
-      req(table_exists())
-      isolate({
-        if (!values$in_full_screen) {
-          values$options_backup$scrollY <- values$options$scrollY
-          values$options$scrollY <- "100%"
-          values$in_full_screen <- TRUE
-          render_table()
-        }
-      })
-    }
-    close_full_screen <- function() {
-      req(table_exists())
-      isolate({
-        if (values$in_full_screen) {
-          values$options$scrollY <- values$options_backup$scrollY
-          values$in_full_screen <- FALSE
-          render_table()
-        }
       })
     }
 
@@ -772,9 +745,7 @@ module_selector_table_server <- function(
       reset_visible_columns = reset_visible_columns,
       change_formatting_calls = change_formatting_calls,
       update_options = update_options,
-      render_table = render_table,
-      load_full_screen = load_full_screen,
-      close_full_screen = close_full_screen
+      render_table = render_table
     )
   })
 }
@@ -782,7 +753,9 @@ module_selector_table_server <- function(
 # Selector table
 module_selector_table_ui <- function(id) {
   ns <- NS(id)
-  DT::dataTableOutput(ns("selection_table")) |> shinycssloaders::withSpinner()
+  DT::dataTableOutput(ns("selection_table"), height = "100%") |>
+    shinycssloaders::withSpinner() |>
+    bslib::as_fill_carrier()
 }
 
 # Selection buttons

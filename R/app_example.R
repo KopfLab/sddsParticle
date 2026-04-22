@@ -40,14 +40,18 @@ example_ui <- function(timezone, default_theme = "cosmo") {
   # ui function
   function(request) {
     bslib::page_navbar(
+      fillable = TRUE, # important for flex content
       title = paste0("SDDS Particle GUI v", packageVersion("sddsParticle")),
       theme = bslib::bs_theme(preset = default_theme, version = 5),
       header = sdds_header(),
+
       bslib::nav_spacer(), # pushes items to the right
       bslib::nav_item(bslib::input_dark_mode(id = "color_mode", mode = NULL)),
       # var bar panel
       bslib::nav_panel(
         title = NULL, # single nav panel
+
+        # SIDEBAR ========
         bslib::page_sidebar(
           sidebar = bslib::sidebar(
             # collapse the left side bar y default
@@ -77,15 +81,16 @@ example_ui <- function(timezone, default_theme = "cosmo") {
             )
           ),
 
+          # DEVICES ========
           bslib::accordion(
             id = "accordion",
             multiple = TRUE,
-            # Devices
             bslib::accordion_panel(
               "SDDS Devices",
               icon = icon("microchip"),
               bslib::card(
                 full_screen = TRUE,
+                max_height = 300,
                 id = "devices_card",
                 bslib::layout_sidebar(
                   sidebar = bslib::sidebar(
@@ -95,37 +100,47 @@ example_ui <- function(timezone, default_theme = "cosmo") {
                   ),
                   sdds_ui_devices_table("sdds")
                 ),
-                bslib::card_footer("Select the devices you want to work with.")
-              )
-            ),
-
-            # Common actions
-            bslib::accordion_panel(
-              "Common actions",
-              icon = icon("bolt-lightning"),
-              actionButton("restart", "Restart", icon = icon("gears")) |>
-                shinyjs::disabled(),
-              spaces(1),
-              actionButton("save", "Save state", icon = icon("floppy-disk")) |>
-                shinyjs::disabled()
-            ),
-
-            # Data structures
-            bslib::accordion_panel(
-              "Data structures",
-              icon = icon("folder-tree"),
-              bslib::card(
-                bslib::layout_sidebar(
-                  sidebar = bslib::sidebar(
-                    position = "left",
-                    width = "160",
-                    sdds_ui_structures_actions("sdds")
-                  ),
-                  sdds_ui_structures_table("sdds"),
-                ),
-                bslib::card_footer("Select structure entry to change values.")
+                bslib::card_footer(
+                  "Select the devices you want to work with."
+                )
               )
             )
+          ),
+
+          # STRUCTURES ========
+          bslib::card(
+            bslib::card_header(icon("folder-tree"), "Data structures"),
+            min_height = 400,
+            bslib::layout_sidebar(
+              sidebar = bslib::sidebar(
+                position = "left",
+                width = "230",
+                bslib::accordion(
+                  open = TRUE,
+                  bslib::accordion_panel(
+                    "Quick actions",
+                    icon = icon("bolt-lightning"),
+                    actionButton("restart", "Restart", icon = icon("gears")) |>
+                      shinyjs::disabled(),
+                    spaces(),
+                    actionButton(
+                      "save",
+                      "Save state",
+                      icon = icon("floppy-disk")
+                    ) |>
+                      shinyjs::disabled()
+                  ),
+                  bslib::accordion_panel(
+                    "Controls",
+                    icon = icon("gears"),
+                    sdds_ui_structures_actions("sdds")
+                  )
+                )
+              ),
+              # no full screen for structures: no point, won't work with the modal dialogs
+              sdds_ui_structures_table("sdds"),
+            ),
+            bslib::card_footer("Select structure entry to change values.")
           )
         )
       )
@@ -148,17 +163,6 @@ example_server <- function(token, default_theme = "cosmo") {
         version = 5
       ))
     })
-
-    # devices full screen
-    observeEvent(input$devices_card_full_screen, {
-      if (input$devices_card_full_screen) {
-        sdds$devices$load_full_screen()
-      } else {
-        sdds$devices$close_full_screen()
-      }
-    })
-
-    # structures full screen - no point, won't work with the modal dialogs!
 
     # show data structure and common actions and disable/enable common actions
     observeEvent(sdds$devices$get_selected_ids(), {

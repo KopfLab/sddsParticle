@@ -28,8 +28,7 @@ module_selector_table_server(
   editable = FALSE,
   extensions = list(),
   no_data_message = "No data available",
-  scrollX = FALSE,
-  scrollY = FALSE,
+  paging = TRUE,
   ...
 )
 }
@@ -68,9 +67,7 @@ module_selector_table_server(
 
 \item{formatting_calls}{list of lists with function and columns e.g. list(list(func = formatCurrency, columns = "x)) or a columns expressione.g. list(list(func = formatCurrencty, columns_expr = rlang::expr(matches("abc"))))}
 
-\item{scrollX}{FALSE/TRUE to disable/enable horizontal scrolling, default is TRUE}
-
-\item{scrollY}{FALSE/TRUE/"200px"/"calc(100vh - 200px)"/"max(400px, calc(100vh - 200px))" - vertical scrolling rules, default is FALSE}
+\item{paging}{TRUE/FALSE whether to have paging information}
 
 \item{...}{additional dat table options (https://datatables.net/reference/option/) passed to options}
 }
