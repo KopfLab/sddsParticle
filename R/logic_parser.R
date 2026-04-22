@@ -173,10 +173,20 @@ cache_treevalues <- function(values, cache_path = "cache/sdds_values.csv") {
     select(all_of(cols)) |>
     filter(
       !is.na(.data$coreid),
+      !is.na(.data$published_at),
       !is.na(.data$type),
       !is.na(.data$version),
       !is.na(.data$values_json)
     )
+
+  if (lubridate::is.POSIXct(values$published_at)) {
+    # store in common datetime format
+    values$published_at <- values$published_at |>
+      lubridate::with_tz("UTC") |>
+      lubridate::format_ISO8601() |>
+      paste0("Z")
+  }
+
   if (nrow(values) == 0) {
     return()
   }
