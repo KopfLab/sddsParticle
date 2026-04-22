@@ -89,7 +89,7 @@ example_ui <- function(timezone, default_theme = "cosmo") {
                 id = "devices_card",
                 bslib::layout_sidebar(
                   sidebar = bslib::sidebar(
-                    position = "right",
+                    position = "left",
                     width = "160",
                     sdds_ui_devices_actions("sdds")
                   ),
@@ -117,7 +117,7 @@ example_ui <- function(timezone, default_theme = "cosmo") {
               bslib::card(
                 bslib::layout_sidebar(
                   sidebar = bslib::sidebar(
-                    position = "right",
+                    position = "left",
                     width = "160",
                     sdds_ui_structures_actions("sdds")
                   ),
