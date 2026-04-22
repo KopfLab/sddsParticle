@@ -49,8 +49,7 @@ sdds_ui_structures_actions <- function(id) {
     actionButton(
       ns("fetch_values"),
       "Request data",
-      icon = icon("cloud-arrow-down"),
-      style = "border: 0;"
+      icon = icon("cloud-arrow-down")
     ) |>
       add_tooltip(
         "Request latest structure from devices."
@@ -59,8 +58,7 @@ sdds_ui_structures_actions <- function(id) {
     actionButton(
       ns("send_commands"),
       "Send queue",
-      icon = icon("paper-plane"),
-      style = "border: 0;"
+      icon = icon("paper-plane")
     ) |>
       add_tooltip(
         "Send commands to make the changes."
@@ -69,8 +67,7 @@ sdds_ui_structures_actions <- function(id) {
     actionButton(
       ns("command_logs"),
       "Fetch logs",
-      icon = icon("list-check"),
-      style = "border: 0;"
+      icon = icon("list-check")
     ) |>
       add_tooltip(
         "Show latest commands sent to devices."
@@ -79,8 +76,7 @@ sdds_ui_structures_actions <- function(id) {
     actionButton(
       ns("events_stream"),
       "Show events",
-      icon = icon("timeline"),
-      style = "border: 0;"
+      icon = icon("timeline")
     ) |>
       add_tooltip(
         "Show events sent by the selected devices."
@@ -89,8 +85,7 @@ sdds_ui_structures_actions <- function(id) {
     actionButton(
       ns("show_hide_publishing"),
       textOutput(ns("publishing_label"), inline = TRUE),
-      icon = icon("upload"),
-      style = "border: 0;"
+      icon = icon("upload")
     ) |>
       add_tooltip(
         "Show/hide the publishing settings for each variable."
@@ -99,8 +94,7 @@ sdds_ui_structures_actions <- function(id) {
     actionButton(
       ns("show_hide_system"),
       textOutput(ns("system_label"), inline = TRUE),
-      icon = icon("house"),
-      style = "border: 0;"
+      icon = icon("house")
     ) |>
       add_tooltip(
         "Show/hide the HARDWARE menu items."
