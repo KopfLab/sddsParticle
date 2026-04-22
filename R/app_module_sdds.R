@@ -409,6 +409,7 @@ sdds_server <- function(
     get_structures_for_table <- reactive({
       # safety checks
       req(devices$table_exists())
+      req(devices$has_data())
       validate(need(
         get_structures(),
         if (is_empty(isolate(devices$get_selected_ids()))) {
@@ -417,7 +418,6 @@ sdds_server <- function(
           "No structures available yet."
         }
       ))
-      validate(need(!is_empty(devices$get_selected_ids()), "Select a device."))
 
       structures$reset_visible_columns()
       # safely call function
