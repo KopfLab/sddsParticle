@@ -9,6 +9,7 @@
 \alias{sdds_parse_values}
 \alias{sdds_combine_tree_and_values}
 \alias{sdds_simplify_trees_and_values}
+\alias{sdds_parse_system}
 \alias{sdds_parse_command_log}
 \alias{sdds_parse_state_snapshot}
 \title{Parse events data}
@@ -37,6 +38,8 @@ sdds_simplify_trees_and_values(
   additional_types = list(),
   additional_converters = list()
 )
+
+sdds_parse_system(json, timezone = Sys.timezone(), wide = FALSE)
 
 sdds_parse_command_log(json, timezone = Sys.timezone())
 
@@ -75,6 +78,8 @@ Parse events data
 \item \code{sdds_combine_tree_and_values()}: combines parsed tree tibble (from \link{sdds_parse_tree}) and values tibble (from \link{sdds_parse_values}), usually not called directly but by\link{sdds_parse_trees_and_values}
 
 \item \code{sdds_simplify_trees_and_values()}: simplifies combined trees and values (from \link{sdds_parse_trees_and_values}), removes the structures themselves only leaving actual data fields
+
+\item \code{sdds_parse_system()}: parses the system variable from a device
 
 \item \code{sdds_parse_command_log()}: parses the command log from a device (retrieved via particle_get_sdds_command_log())
 

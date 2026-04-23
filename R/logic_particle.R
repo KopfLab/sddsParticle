@@ -135,6 +135,23 @@ particle_request_sdds_values <- function(
         send_request(token = token, arg = "")
 }
 
+#' @describeIn particle_api get the sdds system values
+#' @export
+particle_get_sdds_system <- function(
+    coreid,
+    token = keyring::key_get("particle")
+) {
+    # safety checks
+    coreid |>
+        check_arg(
+            !missing(coreid) && is_scalar_character(coreid),
+            "must provide a particle coreid"
+        )
+    result <- sprintf("devices/%s/getSddsSystem", coreid) |>
+        send_request(token = token)
+    return(result$result)
+}
+
 #' @describeIn particle_api get the sdds command log from a device, returns a string that's in JSON format, use [sdds_parse_command_log] to process
 #' @export
 particle_get_sdds_command_log <- function(

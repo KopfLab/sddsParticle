@@ -668,6 +668,91 @@ sdds_simplify_trees_and_values <- function(
   return(out)
 }
 
+
+#' @describeIn sdds_parser parses the system variable from a device
+#' @export
+sdds_parse_system <- function(json, timezone = Sys.timezone(), wide = FALSE) {
+  # get json
+  empty_return <- tibble(
+    path = character(),
+    v_num = numeric(),
+    v_text = character()
+  )
+  if (!missing(json) && !is_empty(json) && is.na(json[1])) {
+    return(empty_return)
+  }
+  sys_vals <- json |> parse_json()
+  if (is_empty(sys_vals)) {
+    return(empty_return)
+  }
+  sys_vals <- sys_vals |> flatten_named_list() |> bind_rows()
+
+  # converters
+  types <- list(
+    "datetime" = expr(.data$base_units == "dt"),
+    "duration" = expr(.data$base_units %in% names(.duration_converter)),
+    "byte" = expr(.data$base_units == "byte"),
+    "version" = expr(.data$path == "version"),
+    "double" = expr(!is.na(.data$v_num)),
+    "text" = expr(TRUE)
+  )
+  converters <- list(
+    "datetime" = function(value, ...) {
+      dt <- lubridate::ymd_hms(value, quiet = TRUE)
+      if (is.na(dt)) {
+        return(value)
+      }
+      dt |>
+        lubridate::with_tz(timezone) |>
+        format("%b %d %Y %H:%M:%S")
+    },
+    "duration" = duration_value_to_text,
+    "byte" = byte_value_to_text,
+    "version" = version_value_to_text,
+    "double" = double_value_to_text,
+    "text" = text_value_to_text
+  )
+
+  # parse
+  types_expr <- types |> purrr::imap(~ expr((!!.x) ~ !!.y))
+  sys_vals <- sys_vals |>
+    mutate(
+      # figure out the measurement base unit
+      base_units = .data$path |>
+        stringr::str_extract("(?<=_)([^.$]+)(?=(\\.|$))") |>
+        stringr::str_replace_all("_", "/"),
+      # get the data type
+      type = case_when(!!!types_expr),
+      # do the value to text conversion
+      text = purrr::pmap_chr(
+        list(
+          text = .data$v_text,
+          num = .data$v_num,
+          units = .data$base_units,
+          type = .data$type
+        ),
+        function(text, num, units, type, converters = list()) {
+          value <- if (!is.na(num)) num else text
+          if (is.null(value)) {
+            return(null_value_to_text())
+          } else if (type %in% names(converters)) {
+            as.character(converters[[type]](value, units))
+          } else {
+            NA_character_
+          }
+        },
+        converters = !!converters
+      )
+    )
+  if (wide) {
+    sys_vals <- sys_vals |>
+      select("path", "text") |>
+      tidyr::pivot_wider(names_from = "path", values_from = "text")
+  }
+  return(sys_vals)
+}
+
+
 #' @describeIn sdds_parser parses the command log from a device (retrieved via particle_get_sdds_command_log())
 #' @export
 sdds_parse_command_log <- function(json, timezone = Sys.timezone()) {

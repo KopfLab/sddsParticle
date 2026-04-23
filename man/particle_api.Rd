@@ -5,6 +5,7 @@
 \alias{particle_get_device_info}
 \alias{particle_request_sdds}
 \alias{particle_request_sdds_values}
+\alias{particle_get_sdds_system}
 \alias{particle_get_sdds_command_log}
 \alias{particle_send_sdds_commands}
 \title{Interact with the particle API}
@@ -19,6 +20,8 @@ particle_get_device_info(
 particle_request_sdds(coreid, token = keyring::key_get("particle"))
 
 particle_request_sdds_values(coreid, token = keyring::key_get("particle"))
+
+particle_get_sdds_system(coreid, token = keyring::key_get("particle"))
 
 particle_get_sdds_command_log(coreid, token = keyring::key_get("particle"))
 
@@ -49,6 +52,8 @@ Interact with the particle API
 \item \code{particle_request_sdds()}: request the self-describing data structure (sdds) from the device, returns a tibble with \code{id}, \code{name}, \code{connected} and \code{return_value} (0 = success)
 
 \item \code{particle_request_sdds_values()}: request the SDDS tree values from the device, returns a tibble with \code{id}, \code{name}, \code{connected} and \code{return_value} (0 = success)
+
+\item \code{particle_get_sdds_system()}: get the sdds system values
 
 \item \code{particle_get_sdds_command_log()}: get the sdds command log from a device, returns a string that's in JSON format, use \link{sdds_parse_command_log} to process
 
