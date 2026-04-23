@@ -6,6 +6,7 @@
 \usage{
 sdds_run_gui(
   token = keyring::key_get("particle"),
+  event = "sddsData",
   timezone = Sys.timezone(),
   options = list(),
   uiPattern = "/",
@@ -14,6 +15,8 @@ sdds_run_gui(
 }
 \arguments{
 \item{token}{particle access token (retrieved from keyring by default), save a token in your keyring with particle_store_token()}
+
+\item{event}{the name of the event to listen to, default is "sddsData"}
 
 \item{timezone}{the timezone to user for datetime calculations}
 

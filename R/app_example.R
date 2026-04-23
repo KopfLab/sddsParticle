@@ -4,10 +4,12 @@
 #'
 #' @param timezone the timezone to user for datetime calculations
 #' @inheritParams particle_get_device_info
+#' @inheritParams sdds_onstart
 #' @inheritParams shiny::shinyApp
 #' @export
 sdds_run_gui <- function(
   token = keyring::key_get("particle"),
+  event = "sddsData",
   timezone = Sys.timezone(),
   options = list(),
   uiPattern = "/",
@@ -29,7 +31,7 @@ sdds_run_gui <- function(
     ui = ui,
     server = server,
     # onstart required to read the particle stream!
-    onStart = sdds_onstart(token = token),
+    onStart = sdds_onstart(token = token, event = event),
     options = options,
     enableBookmarking = enableBookmarking,
     uiPattern = uiPattern

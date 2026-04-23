@@ -25,7 +25,7 @@ sdds_header()
 
 sdds_server(id, token, timezone = Sys.timezone(), accessible_core_ids = NULL)
 
-sdds_onstart(token)
+sdds_onstart(token, event = "sddsData")
 }
 \arguments{
 \item{id}{module id}
@@ -33,6 +33,8 @@ sdds_onstart(token)
 \item{token}{particle access token (retrieved from keyring by default), save a token in your keyring with particle_store_token()}
 
 \item{accessible_core_ids}{the particle devices that are allowed to be controlled}
+
+\item{event}{the name of the event to listen to, default is "sddsData"}
 }
 \description{
 SDDS shiny Module.

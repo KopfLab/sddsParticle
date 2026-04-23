@@ -212,7 +212,7 @@ sdds_server <- function(
     ## get all devices
     get_all_devices <- reactive({
       values$refresh_devices
-      log_info(ns = ns, user_msg = "Fetching available devices")
+      log_info(ns = ns, user_msg = "Fetching latest device statuses")
       # safely call function
       out <- get_devices_in_app(token = token) |>
         try_catch_cnds()
@@ -254,7 +254,8 @@ sdds_server <- function(
         ),
         # view all
         paging = FALSE,
-        dom = "ft"
+        dom = "ft",
+        no_data_message = "There are none."
       )
 
     # structures =======
@@ -365,8 +366,11 @@ sdds_server <- function(
     ## structures for table
     get_structures_for_table <- reactive({
       # safety checks
-      req(devices$table_exists())
-      req(devices$has_data())
+      validate(need(devices$table_exists(), "No devices available."))
+      validate(need(
+        devices$has_data(),
+        "No devices available."
+      ))
       validate(need(
         get_structures(),
         if (is_empty(isolate(devices$get_selected_ids()))) {
@@ -1223,12 +1227,17 @@ sdds_server <- function(
 
 #' @describeIn sdds_module generates the onstart function for connecting to the SDDS particle stream
 #' @inheritParams particle_get_device_info
+#' @param event the name of the event to listen to, default is "sddsData"
 #' @export
-sdds_onstart <- function(token) {
+sdds_onstart <- function(token, event = "sddsData") {
   # return onStart function
   function() {
     log_info("connecting to particle stream")
-    particle_stream_connect(token = token, log = TRUE)
+    particle_stream_connect(
+      token = token,
+      endpoint = paste0("events/", event),
+      log = TRUE
+    )
     onStop(function() {
       particle_stream_disconnect()
       log_info("Application closed.")
