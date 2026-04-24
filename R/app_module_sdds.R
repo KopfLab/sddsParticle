@@ -1223,6 +1223,7 @@ sdds_server <- function(
 
     # return functions ======
     list(
+      get_token = function() token,
       devices = devices,
       structures = structures,
       refresh_devices = refresh_devices,

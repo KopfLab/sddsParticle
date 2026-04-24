@@ -12,8 +12,7 @@ get_devices_in_app <- function(token, core_ids) {
     )
   } else {
     # always request from cloud
-    devices <- particle_get_device_info(token = token) |>
-      simplify_device_info()
+    devices <- particle_get_device_info(token = token)
     if (in_devmode()) {
       # store in file in devmode
       if (!dir.exists("cache")) {
@@ -171,11 +170,6 @@ prepare_simplified_tree_w_values_for_table <- function(
       names_from = "device_info",
       values_from = "text"
     )
-}
-
-# simplify the device info
-simplify_device_info <- function(devices) {
-  devices |> select(where(~ !is.list(.x)))
 }
 
 # request values in app

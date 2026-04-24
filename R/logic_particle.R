@@ -81,12 +81,13 @@ send_request <- function(
 #' @export
 particle_get_device_info <- function(
     token = keyring::key_get("particle"),
-    sdds_only = TRUE
+    sdds_only = TRUE,
+    simplify = TRUE
 ) {
     # safety checks
     check_arg(sdds_only, is_scalar_logical(sdds_only), "must be TRUE or FALSE")
     # get devices
-    send_request("devices", token = token) |>
+    devices <- send_request("devices", token = token) |>
         tibble::as_tibble() |>
         dplyr::rename("coreid" = "id") |>
         # filter for sdds devices
@@ -100,6 +101,10 @@ particle_get_device_info <- function(
                 }
             )
         )
+    if (simplify) {
+        devices <- devices |> select(where(~ !is.list(.x)))
+    }
+    return(devices)
 }
 
 #' @param coreid the ID of the particle device to send requests and commands to

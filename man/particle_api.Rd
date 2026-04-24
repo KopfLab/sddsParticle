@@ -16,7 +16,8 @@ particle_store_token()
 
 particle_get_device_info(
   token = keyring::key_get("particle"),
-  sdds_only = TRUE
+  sdds_only = TRUE,
+  simplify = TRUE
 )
 
 particle_request_sdds(coreid, token = keyring::key_get("particle"))
