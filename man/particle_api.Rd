@@ -8,6 +8,8 @@
 \alias{particle_get_sdds_system}
 \alias{particle_get_sdds_command_log}
 \alias{particle_send_sdds_commands}
+\alias{particle_get_and_parse_sdds_systems}
+\alias{particle_get_and_parse_sdds_command_logs}
 \title{Interact with the particle API}
 \usage{
 particle_store_token()
@@ -28,6 +30,19 @@ particle_get_sdds_command_log(coreid, token = keyring::key_get("particle"))
 particle_send_sdds_commands(
   coreid,
   cmds = character(),
+  token = keyring::key_get("particle")
+)
+
+particle_get_and_parse_sdds_systems(
+  core_ids,
+  timezone = Sys.timezone(),
+  wide = TRUE,
+  token = keyring::key_get("particle")
+)
+
+particle_get_and_parse_sdds_command_logs(
+  core_ids,
+  timezone = Sys.timezone(),
   token = keyring::key_get("particle")
 )
 }
@@ -58,5 +73,9 @@ Interact with the particle API
 \item \code{particle_get_sdds_command_log()}: get the sdds command log from a device, returns a string that's in JSON format, use \link{sdds_parse_command_log} to process
 
 \item \code{particle_send_sdds_commands()}: sends the \code{cmds} to the particle device, returns a tibble with \code{id}, \code{name}, \code{connected} and \code{return_value} (0 = success, > 0 bit-wise indicator of commands that failed, < 0 the exact error code if it was a single command)
+
+\item \code{particle_get_and_parse_sdds_systems()}: get the sdds system values for multiple cores with \link{particle_get_sdds_system} and parse them right away using \link{sdds_parse_system}
+
+\item \code{particle_get_and_parse_sdds_command_logs()}: get the sdds command logs with \link{particle_get_sdds_command_log} for multiple cores and parse them right away using \link{sdds_parse_command_log}
 
 }}

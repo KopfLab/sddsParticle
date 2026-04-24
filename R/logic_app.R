@@ -448,44 +448,15 @@ update_command_queue_status_in_app <- function(existing_queue, cmds_results) {
     arrange(.data$row_id)
 }
 
-
 ## command logs ===========
-
-# get command logs
-get_command_logs_in_app <- function(devices, core_ids, token) {
-  out <- devices |>
-    filter(.data$coreid %in% core_ids) |>
-    select("coreid", "name") |>
-    mutate(
-      out = .data$coreid |>
-        purrr::map(
-          ~ {
-            particle_get_sdds_command_log(.x, token = token) |>
-              try_catch_cnds(error_value = NA_character_)
-          }
-        ),
-      conditions = .data$out |>
-        purrr::map(~ .x$conditions),
-      logs = .data$out |>
-        purrr::map_chr(~ .x$result)
-    )
-  out$conditions |>
-    bind_rows() |>
-    warn_cnds(include_cnd_symbols = FALSE, include_cnd_calls = FALSE)
-  return(out)
-}
 
 # prep command logs for table
 prepare_command_logs_for_table_in_app <- function(
   cmd_logs,
-  timezone
+  devices
 ) {
   cmd_logs |>
-    mutate(
-      logs = .data$logs |>
-        purrr::map(sdds_parse_command_log, timezone = timezone)
-    ) |>
-    tidyr::unnest(.data$logs) |>
+    left_join(devices |> select("coreid", "name"), by = c("coreid")) |>
     arrange(desc(.data$datetime), .data$name) |>
     mutate(
       row_id = row_number(),

@@ -72,26 +72,6 @@ sdds_ui_structures_actions <- function(id, space = 1) {
       shinyjs::disabled(),
     spaces(space),
     actionButton(
-      ns("command_logs"),
-      "Fetch logs",
-      icon = icon("list-check")
-    ) |>
-      add_tooltip(
-        "Show latest commands sent to devices."
-      ) |>
-      shinyjs::disabled(),
-    spaces(space),
-    actionButton(
-      ns("events_stream"),
-      "Show events",
-      icon = icon("timeline")
-    ) |>
-      add_tooltip(
-        "Show events sent by the selected devices."
-      ) |>
-      shinyjs::disabled(),
-    spaces(space),
-    actionButton(
       ns("show_hide_publishing"),
       textOutput(ns("publishing_label"), inline = TRUE),
       icon = icon("upload")
@@ -119,6 +99,26 @@ sdds_ui_structures_actions <- function(id, space = 1) {
     ) |>
       add_tooltip(
         "Show/hide the HARDWARE menu items."
+      ) |>
+      shinyjs::disabled(),
+    spaces(space),
+    actionButton(
+      ns("command_logs"),
+      "Fetch cmd logs",
+      icon = icon("list-check")
+    ) |>
+      add_tooltip(
+        "Show latest commands sent to devices."
+      ) |>
+      shinyjs::disabled(),
+    spaces(space),
+    actionButton(
+      ns("events_stream"),
+      "Show events",
+      icon = icon("timeline")
+    ) |>
+      add_tooltip(
+        "Show events sent by the selected devices."
       ) |>
       shinyjs::disabled()
   )
@@ -1169,14 +1169,21 @@ sdds_server <- function(
     get_command_logs_for_table <- reactive({
       req(input$command_logs)
 
-      # safely call function
-      out <- get_command_logs_in_app(
-        devices = isolate(get_devices()),
+      # the function call returns aggregated out object
+      out <- particle_get_and_parse_sdds_command_logs(
         core_ids = isolate(devices$get_selected_ids()),
+        timezone = isolate(get_timezone()),
         token = token
-      ) |>
+      )
+      out |> log_cnds(ns = ns)
+      if (is.null(out$result)) {
+        return(NULL)
+      }
+
+      # prepare for table
+      out <- out$result |>
         prepare_command_logs_for_table_in_app(
-          timezone = isolate(get_timezone())
+          devices = isolate(get_devices())
         ) |>
         try_catch_cnds()
       out |> log_cnds(ns = ns)
@@ -1218,7 +1225,6 @@ sdds_server <- function(
     list(
       devices = devices,
       structures = structures,
-      get_all_devices = get_all_devices,
       refresh_devices = refresh_devices,
       edit_structure = edit_structure
     )

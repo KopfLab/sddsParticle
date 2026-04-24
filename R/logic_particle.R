@@ -206,3 +206,63 @@ check_commands_success <- function(retval, n_cmds) {
         }
     )
 }
+
+
+# convenience functions for multiple core ids =============
+
+#' @describeIn particle_api get the sdds system values for multiple cores with [particle_get_sdds_system] and parse them right away using [sdds_parse_system]
+#' @export
+particle_get_and_parse_sdds_systems <- function(
+    core_ids,
+    timezone = Sys.timezone(),
+    wide = TRUE,
+    token = keyring::key_get("particle")
+) {
+    # fetch data
+    out <- core_ids |>
+        purrr::map(
+            ~ {
+                particle_get_sdds_system(.x, token = token) |>
+                    sdds_parse_system(timezone = timezone, wide = wide) |>
+                    try_catch_cnds(error_value = tibble())
+            }
+        )
+    # return both result and combined conditions
+    list(
+        result = out |>
+            purrr::map2(
+                core_ids,
+                ~ .x$result |> mutate(coreid = .y, .before = 1L)
+            ) |>
+            bind_rows(),
+        conditions = out |> purrr::map(~ .x$conditions) |> bind_rows()
+    )
+}
+
+#' @describeIn particle_api get the sdds command logs with [particle_get_sdds_command_log] for multiple cores and parse them right away using [sdds_parse_command_log]
+#' @export
+particle_get_and_parse_sdds_command_logs <- function(
+    core_ids,
+    timezone = Sys.timezone(),
+    token = keyring::key_get("particle")
+) {
+    # fetch data
+    out <- core_ids |>
+        purrr::map(
+            ~ {
+                particle_get_sdds_command_log(.x, token = token) |>
+                    sdds_parse_command_log(timezone = timezone) |>
+                    try_catch_cnds(error_value = tibble())
+            }
+        )
+    # return both result and combined conditions
+    list(
+        result = out |>
+            purrr::map2(
+                core_ids,
+                ~ .x$result |> mutate(coreid = .y, .before = 1L)
+            ) |>
+            bind_rows(),
+        conditions = out |> purrr::map(~ .x$conditions) |> bind_rows()
+    )
+}
