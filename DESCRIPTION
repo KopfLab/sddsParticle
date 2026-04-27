@@ -1,6 +1,6 @@
 Package: sddsParticle
 Title: Control SDDS Particle Devices
-Version: 0.5.2
+Version: 0.5.3
 Authors@R: 
     person("Sebastian", "Kopf", , "seb.kopf@gmail.com", role = c("aut", "cre"))
 Description: This package provides a control GUI for self-describing data structures (SDDS) run on Particle devices.

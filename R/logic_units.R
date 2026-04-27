@@ -49,7 +49,7 @@ datetime_value_to_text <- function(value, timezone, ...) {
   }
   dt |>
     lubridate::with_tz(timezone) |>
-    format("%b %d %Y %H:%M:%S")
+    format("%b %d %Y %H:%M:%S %Z")
 }
 
 HHMM_value_to_datetime <- function(value, timezone, ...) {

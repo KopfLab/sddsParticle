@@ -44,7 +44,7 @@ get_devices_for_table_in_app <- function(devices, timezone) {
     mutate(
       last_heard = .data$last_heard |>
         lubridate::with_tz(timezone) |>
-        format("%b %d %Y %H:%M:%S")
+        format("%b %d %Y %H:%M:%S %Z")
     ) |>
     left_join(sdds_read_cached_trees_and_values(), by = "coreid") |>
     mutate(version = version_value_to_text(.data$version)) |>
@@ -260,7 +260,7 @@ prepare_stream_events_for_table <- function(events, timezone = Sys.timezone()) {
       row_id = row_number(),
       published_at = .data$published_at |>
         lubridate::with_tz(timezone) |>
-        format("%b %d %Y %H:%M:%S"),
+        format("%b %d %Y %H:%M:%S %Z"),
       data_short = if_else(
         is.na(.data$data),
         .data$error,
@@ -459,7 +459,7 @@ prepare_command_logs_for_table_in_app <- function(
         .data$error_code,
         "none"
       ),
-      datetime = .data$datetime |> format("%b %d %Y %H:%M:%S")
+      datetime = .data$datetime |> format("%b %d %Y %H:%M:%S %Z")
     ) |>
     select(
       "row_id",
