@@ -8,6 +8,7 @@ sdds_run_gui(
   token = keyring::key_get("particle"),
   event = "sddsData",
   timezone = Sys.timezone(),
+  accessible_core_ids = NULL,
   options = list(),
   uiPattern = "/",
   enableBookmarking = "url"
@@ -19,6 +20,8 @@ sdds_run_gui(
 \item{event}{the name of the event to listen to, default is "sddsData"}
 
 \item{timezone}{the timezone to user for datetime calculations}
+
+\item{accessible_core_ids}{the particle devices that are allowed to be controlled}
 
 \item{options}{Named options that should be passed to the \code{runApp} call
 (these can be any of the following: "port", "launch.browser", "host", "quiet",

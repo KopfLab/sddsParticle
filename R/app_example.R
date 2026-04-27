@@ -11,6 +11,7 @@ sdds_run_gui <- function(
   token = keyring::key_get("particle"),
   event = "sddsData",
   timezone = Sys.timezone(),
+  accessible_core_ids = NULL,
   options = list(),
   uiPattern = "/",
   enableBookmarking = "url"
@@ -24,7 +25,10 @@ sdds_run_gui <- function(
 
   # minimalist example ui and server
   ui <- example_ui(timezone = timezone)
-  server <- example_server(token = token)
+  server <- example_server(
+    token = token,
+    accessible_core_ids = accessible_core_ids
+  )
 
   # generate app
   shinyApp(
@@ -150,7 +154,11 @@ example_ui <- function(timezone, default_theme = "cosmo") {
   }
 }
 
-example_server <- function(token, default_theme = "cosmo") {
+example_server <- function(
+  token,
+  default_theme = "cosmo",
+  accessible_core_ids = NULL
+) {
   # server function
   function(input, output, session) {
     # theme
@@ -184,7 +192,12 @@ example_server <- function(token, default_theme = "cosmo") {
     })
 
     # sdds
-    sdds <- sdds_server("sdds", token, timezone = reactive(input$timezone))
+    sdds <- sdds_server(
+      "sdds",
+      token,
+      timezone = reactive(input$timezone),
+      accessible_core_ids = accessible_core_ids
+    )
 
     # common actions
     observeEvent(input$restart, {
