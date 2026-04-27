@@ -526,6 +526,7 @@ sdds_simplify_trees_and_values <- function(
     "enum" = expr(.data$is_enum),
     "var_interval" = expr(.data$is_var_interval),
     "datetime" = expr(.data$base_units == "dt"),
+    "hhmm" = expr(.data$base_units == "HHMM"),
     "duration" = expr(.data$base_units %in% names(.duration_converter)),
     "byte" = expr(.data$base_units == "byte"),
     "version" = expr(.data$is_int & .data$name == "version"),
@@ -544,13 +545,10 @@ sdds_simplify_trees_and_values <- function(
     "enum" = enum_value_to_text,
     "var_interval" = var_intervals_value_to_text,
     "datetime" = function(value, ...) {
-      dt <- lubridate::ymd_hms(value, quiet = TRUE)
-      if (is.na(dt)) {
-        return(value)
-      }
-      dt |>
-        lubridate::with_tz(timezone) |>
-        format("%b %d %Y %H:%M:%S")
+      datetime_value_to_text(value, timezone = timezone, ...)
+    },
+    "hhmm" = function(value, ...) {
+      HHMM_value_to_text(value, timezone = timezone, ...)
     },
     "duration" = duration_value_to_text,
     "byte" = byte_value_to_text,
@@ -698,13 +696,7 @@ sdds_parse_system <- function(json, timezone = Sys.timezone(), wide = FALSE) {
   )
   converters <- list(
     "datetime" = function(value, ...) {
-      dt <- lubridate::ymd_hms(value, quiet = TRUE)
-      if (is.na(dt)) {
-        return(value)
-      }
-      dt |>
-        lubridate::with_tz(timezone) |>
-        format("%b %d %Y %H:%M:%S")
+      datetime_value_to_text(value, timezone = timezone, ...)
     },
     "duration" = duration_value_to_text,
     "byte" = byte_value_to_text,

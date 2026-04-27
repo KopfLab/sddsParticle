@@ -481,6 +481,61 @@ value_duration_input <- function(id) {
   )
 }
 
+# hhmm input
+value_hhmm_input <- function(id, get_timezone) {
+  input_module(
+    id,
+    value_to_text = function(value, ...) {
+      HHMM_value_to_text(value, timezone = get_timezone(), ...)
+    },
+    make_gui = function(id, label, input, units, changed, ...) {
+      hour <- selectInput(
+        inputId = id,
+        label = NULL,
+        choices = sprintf("%02d", 0:23),
+        selected = input$hour
+      )
+      minutes <- selectInput(
+        inputId = paste0(id, "mins"),
+        label = NULL,
+        choices = sprintf("%02d", 0:59),
+        selected = input$mins
+      )
+      generate_standard_input_row(label, hour, minutes)
+    },
+    fetch_input = function(ui_inputs, id) {
+      list(
+        hour = ui_inputs[[id]],
+        mins = ui_inputs[[paste0(id, "mins")]]
+      )
+    },
+    value_to_input = function(value, ...) {
+      dt <- HHMM_value_to_datetime(value, timezone = get_timezone(), ...)
+      list(
+        hour = sprintf("%02d", lubridate::hour(dt)),
+        mins = sprintf("%02d", lubridate::minute(dt))
+      )
+    },
+    input_to_value = function(input, ...) {
+      now <- lubridate::now(tzone = get_timezone())
+      lubridate::hour(now) <- as.integer(input$hour)
+      lubridate::minute(now) <- as.integer(input$mins)
+      now |> lubridate::with_tz("UTC") |> format("%H%M")
+    },
+    compare_input = function(input1, input2) {
+      identical(input1$hour, input2$hour) && identical(input1$mins, input2$mins)
+    },
+    update_input = function(session, id, input) {
+      updateSelectInput(session, id, selected = input$hour)
+      updateSelectInput(session, paste0(id, "mins"), selected = input$mins)
+    },
+    flag_input_changed = function(id, ...) {
+      add_value_changed_class_to_input(id, ...)
+      add_value_changed_class_to_input(paste0(id, "mins"), ...)
+    }
+  )
+}
+
 # publishing interval input
 value_var_intervals_input <- function(id) {
   input_module(

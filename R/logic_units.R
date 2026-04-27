@@ -42,6 +42,31 @@ version_value_to_text <- function(value, ...) {
   return(text)
 }
 
+datetime_value_to_text <- function(value, timezone, ...) {
+  dt <- lubridate::ymd_hms(value, quiet = TRUE)
+  if (is.na(dt)) {
+    return(value)
+  }
+  dt |>
+    lubridate::with_tz(timezone) |>
+    format("%b %d %Y %H:%M:%S")
+}
+
+HHMM_value_to_datetime <- function(value, timezone, ...) {
+  hhmm <- as.integer(value)
+  if (is.na(hhmm)) {
+    as.POSIXct(NA_integer_)
+  }
+  now <- lubridate::now(tzone = "UTC")
+  lubridate::hour(now) <- hhmm %/% 100
+  lubridate::minute(now) <- hhmm %% 100
+  now |> lubridate::with_tz(timezone)
+}
+
+HHMM_value_to_text <- function(value, timezone, ...) {
+  HHMM_value_to_datetime(value, timezone, ...) |> format("%H:%M %Z")
+}
+
 # complex units converters ======
 
 duration_value_to_seconds <- function(value, units) {
