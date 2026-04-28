@@ -46,21 +46,28 @@ sdds_ui_structures_table <- function(id) {
   module_selector_table_ui(ns("structures"))
 }
 
+#' @describeIn sdds_module generates the request data button
+#' @export
+sdds_ui_structures_fetch_data <- function(id, ...) {
+  ns <- NS(id)
+  actionButton(
+    ns("fetch_values"),
+    "Request latest data",
+    icon = icon("cloud-arrow-down"),
+    ...
+  ) |>
+    add_tooltip(
+      "Request latest structure and values from devices."
+    ) |>
+    shinyjs::disabled()
+}
+
+
 #' @describeIn sdds_module generates the ui for the sdds structures action links
 #' @export
 sdds_ui_structures_actions <- function(id, space = 1) {
   ns <- NS(id)
   tagList(
-    actionButton(
-      ns("fetch_values"),
-      "Request data",
-      icon = icon("cloud-arrow-down")
-    ) |>
-      add_tooltip(
-        "Request latest structure from devices."
-      ) |>
-      shinyjs::disabled(),
-    spaces(space),
     actionButton(
       ns("send_commands"),
       "Send queue",

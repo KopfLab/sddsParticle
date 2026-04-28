@@ -5,6 +5,7 @@
 \alias{sdds_ui_devices_actions}
 \alias{sdds_ui_structures_div}
 \alias{sdds_ui_structures_table}
+\alias{sdds_ui_structures_fetch_data}
 \alias{sdds_ui_structures_actions}
 \alias{sdds_header}
 \alias{sdds_server}
@@ -18,6 +19,8 @@ sdds_ui_devices_actions(id)
 sdds_ui_structures_div(id, ...)
 
 sdds_ui_structures_table(id)
+
+sdds_ui_structures_fetch_data(id, ...)
 
 sdds_ui_structures_actions(id, space = 1)
 
@@ -48,6 +51,8 @@ SDDS shiny Module.
 \item \code{sdds_ui_structures_div()}: generates the ui for the sdds structures div (include in your UI layout to show/hide when devices are selected)
 
 \item \code{sdds_ui_structures_table()}: generates the ui for the sdds structures table
+
+\item \code{sdds_ui_structures_fetch_data()}: generates the request data button
 
 \item \code{sdds_ui_structures_actions()}: generates the ui for the sdds structures action links
 

@@ -115,7 +115,12 @@ example_ui <- function(timezone, default_theme = "cosmo") {
 
           # STRUCTURES ========
           bslib::card(
-            bslib::card_header(icon("folder-tree"), "Data structures"),
+            bslib::card_header(
+              icon("folder-tree"),
+              "Data structures",
+              # right aligned fetch data button
+              sdds_ui_structures_fetch_data("sdds", class = "ms-auto")
+            ),
             min_height = 400,
             bslib::layout_sidebar(
               sidebar = bslib::sidebar(
@@ -179,16 +184,6 @@ example_server <- function(
       device_selected <- !is_empty(sdds$devices$get_selected_ids())
       shinyjs::toggleState("restart", condition = device_selected)
       shinyjs::toggleState("save", condition = device_selected)
-      if (device_selected) {
-        bslib::accordion_panel_open(
-          id = "accordion",
-          values = "Common actions"
-        )
-        bslib::accordion_panel_open(
-          id = "accordion",
-          values = "Data structures"
-        )
-      }
     })
 
     # sdds
