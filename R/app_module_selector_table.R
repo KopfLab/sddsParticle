@@ -521,18 +521,42 @@ module_selector_table_server <- function(
     }
     observeEvent(input$deselect_all, deselect_all())
 
+    # protected columns: the id column and any columns hidden via columnDefs
+    # (visible = FALSE). These must always stay as-is and are never offered for
+    # toggling in the "Show columns" dialog so the user can't unselect them.
+    get_protected_col_indices <- function() {
+      df_names <- names(get_table_df())
+      protected <- integer(0)
+      # the id column (if it is among the displayed columns)
+      id_idx <- match(id_column, df_names)
+      if (!is.na(id_idx)) {
+        protected <- c(protected, id_idx)
+      }
+      # columns marked invisible via columnDefs - targets are 0-based positions
+      # within the currently visible columns, map them back to df column indices
+      for (def in values$options$columnDefs) {
+        if (isFALSE(def$visible) && is.numeric(def$targets) && all(def$targets >= 0)) {
+          protected <- c(protected, values$visible_cols[def$targets + 1L])
+        }
+      }
+      sort(unique(protected[!is.na(protected)]))
+    }
+
     # set/pick columns event =====
     observeEvent(input$pick_cols, {
       req(get_data())
+      df_names <- names(get_table_df())
+      # do not offer id / invisible columns for toggling (they must always stay)
+      selectable <- setdiff(seq_along(df_names), get_protected_col_indices())
       dlg <- modalDialog(
         title = "Show columns",
         easyClose = TRUE,
         checkboxGroupInput(
           ns("visible_cols"),
           label = NULL,
-          choiceNames = names(get_table_df()),
-          choiceValues = seq_along(names(get_table_df())),
-          selected = values$visible_cols
+          choiceNames = df_names[selectable],
+          choiceValues = selectable,
+          selected = intersect(values$visible_cols, selectable)
         ),
         footer = tagList(
           actionButton(ns("apply_cols"), "Apply") |>
@@ -547,7 +571,14 @@ module_selector_table_server <- function(
     })
     observeEvent(input$apply_cols, {
       removeModal()
-      if (set_visible_columns(input$visible_cols)) {
+      # always keep the protected (id/invisible) columns that are currently shown,
+      # since they are not part of the dialog's checkboxes
+      protected_visible <- intersect(
+        values$visible_cols,
+        get_protected_col_indices()
+      )
+      new_visible <- sort(unique(c(protected_visible, as.integer(input$visible_cols))))
+      if (set_visible_columns(new_visible)) {
         log_info(
           ns = ns,
           "selecting table columns: ",
