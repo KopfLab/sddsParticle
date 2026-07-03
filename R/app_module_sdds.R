@@ -442,7 +442,7 @@ sdds_server <- function(
         # view all
         paging = FALSE,
         dom = "ft",
-        no_data_message = "There are none."
+        no_data_message = "No devices available."
       )
 
     # structures =======
