@@ -1131,6 +1131,30 @@ sdds_server <- function(
       cmds_to_send <- values$command_queue |>
         filter(.data$row_id %in% !!row_ids)
 
+      # only send to connected devices; warn about any disconnected ones
+      connected_ids <- get_devices() |>
+        filter(.data$connected) |>
+        pull(.data$coreid)
+      disconnected_cmds <- cmds_to_send |>
+        filter(!.data$coreid %in% connected_ids)
+      if (nrow(disconnected_cmds) > 0) {
+        disconnected_devices <- disconnected_cmds |>
+          distinct(.data$coreid, .data$corename)
+        n_cmds <- nrow(disconnected_cmds)
+        n_devices <- nrow(disconnected_devices)
+        msg <- format_inline(
+          "{qty(n_cmds)}Command{?s} cannot be sent to {qty(n_devices)}disconnected device{?s} {disconnected_devices$corename}"
+        )
+        log_warning(ns = ns, user_msg = msg)
+        cmds_to_send <- cmds_to_send |>
+          filter(.data$coreid %in% connected_ids)
+      }
+
+      # nothing left to send once disconnected devices are removed
+      if (nrow(cmds_to_send) == 0) {
+        return()
+      }
+
       # send commands (done safely for each to catch individual errors)
       cmds_results <- cmds_to_send |>
         mutate(
@@ -1259,7 +1283,8 @@ sdds_server <- function(
           ),
         modalButton("Close")
       ),
-      easyClose = TRUE
+      easyClose = TRUE,
+      size = "l"
     )
 
     # show events modal
@@ -1388,7 +1413,8 @@ sdds_server <- function(
       footer = tagList(
         modalButton("Close")
       ),
-      easyClose = TRUE
+      easyClose = TRUE,
+      size = "l"
     )
     observeEvent(input$command_logs, {
       log_info(ns = ns, user_msg = "Fetching command logs")
