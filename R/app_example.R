@@ -23,11 +23,30 @@ sdds_run_gui <- function(
     if (shiny::in_devmode()) " in DEV mode"
   )
 
+  # example quick actions (shown in the data structures card)
+  quick_actions <- list(
+    quick_action(
+      "restart",
+      "Restart",
+      icon = icon("gears"),
+      path = "SYSTEM.action",
+      value = "restart"
+    ),
+    quick_action(
+      "save",
+      "Save state",
+      icon = icon("floppy-disk"),
+      path = "SYSTEM.action",
+      value = "saveState"
+    )
+  )
+
   # minimalist example ui and server
-  ui <- example_ui(timezone = timezone)
+  ui <- example_ui(timezone = timezone, quick_actions = quick_actions)
   server <- example_server(
     token = token,
-    accessible_core_ids = accessible_core_ids
+    accessible_core_ids = accessible_core_ids,
+    quick_actions = quick_actions
   )
 
   # generate app
@@ -42,7 +61,7 @@ sdds_run_gui <- function(
   )
 }
 
-example_ui <- function(timezone, default_theme = "cosmo") {
+example_ui <- function(timezone, quick_actions = list(), default_theme = "flatly") {
   # ui function
   function(request) {
     bslib::page_navbar(
@@ -52,107 +71,57 @@ example_ui <- function(timezone, default_theme = "cosmo") {
       header = sdds_header(),
 
       bslib::nav_spacer(), # pushes items to the right
+      # timezone and theme selectors (labels replaced with hover tooltips)
+      bslib::nav_item(
+        selectInput(
+          "timezone",
+          label = NULL,
+          choices = OlsonNames(),
+          selected = timezone,
+          width = "200px"
+        ) |>
+          tagAppendAttributes(class = "mb-0") |>
+          add_tooltip("Timezone used for all date and time displays")
+      ),
+      bslib::nav_item(
+        selectInput(
+          "theme",
+          label = NULL,
+          choices = c(
+            "flatly",
+            "cosmo",
+            "lumen",
+            "minty",
+            "sandstone",
+            "darkly",
+            "cyborg",
+            "slate",
+            "superhero",
+            "solar"
+          ),
+          selected = default_theme,
+          width = "150px"
+        ) |>
+          tagAppendAttributes(class = "mb-0") |>
+          add_tooltip("Visual theme for the app")
+      ),
       bslib::nav_item(bslib::input_dark_mode(id = "color_mode", mode = NULL)),
       # var bar panel
       bslib::nav_panel(
         title = NULL, # single nav panel
 
-        # SIDEBAR ========
+        # DEVICES in left sidebar, DATA STRUCTURES as main content panel
         bslib::page_sidebar(
           sidebar = bslib::sidebar(
-            # collapse the left side bar y default
-            open = FALSE,
-            selectInput(
-              "timezone",
-              label = "Timezone",
-              choices = OlsonNames(),
-              selected = timezone
-            ),
-            selectInput(
-              "theme",
-              label = "Theme",
-              choices = c(
-                "flatly",
-                "cosmo",
-                "lumen",
-                "minty",
-                "sandstone",
-                "darkly",
-                "cyborg",
-                "slate",
-                "superhero",
-                "solar"
-              ),
-              selected = default_theme
-            )
-          ),
-
-          # DEVICES ========
-          bslib::accordion(
-            id = "accordion",
-            multiple = TRUE,
-            bslib::accordion_panel(
-              "SDDS Devices",
-              icon = icon("microchip"),
-              bslib::card(
-                full_screen = TRUE,
-                max_height = 300,
-                id = "devices_card",
-                bslib::layout_sidebar(
-                  sidebar = bslib::sidebar(
-                    position = "left",
-                    width = "160",
-                    sdds_ui_devices_actions("sdds")
-                  ),
-                  sdds_ui_devices_table("sdds")
-                ),
-                bslib::card_footer(
-                  "Select the devices you want to work with."
-                )
-              )
-            )
+            width = "550",
+            open = "open",
+            # fillable so the devices card (and its table) fill the sidebar height
+            fillable = TRUE,
+            sdds_ui_devices_card("sdds")
           ),
 
           # STRUCTURES ========
-          bslib::card(
-            bslib::card_header(
-              icon("folder-tree"),
-              "Data structures",
-              # right aligned fetch data button
-              sdds_ui_structures_fetch_data("sdds", class = "ms-auto")
-            ),
-            min_height = 400,
-            bslib::layout_sidebar(
-              sidebar = bslib::sidebar(
-                position = "left",
-                width = "230",
-                bslib::accordion(
-                  open = TRUE,
-                  bslib::accordion_panel(
-                    "Quick actions",
-                    icon = icon("bolt-lightning"),
-                    actionButton("restart", "Restart", icon = icon("gears")) |>
-                      shinyjs::disabled(),
-                    spaces(),
-                    actionButton(
-                      "save",
-                      "Save state",
-                      icon = icon("floppy-disk")
-                    ) |>
-                      shinyjs::disabled()
-                  ),
-                  bslib::accordion_panel(
-                    "Controls",
-                    icon = icon("gears"),
-                    sdds_ui_structures_actions("sdds")
-                  )
-                )
-              ),
-              # no full screen for structures: no point, won't work with the modal dialogs
-              sdds_ui_structures_table("sdds"),
-            ),
-            bslib::card_footer("Select structure entry to change values.")
-          )
+          sdds_ui_structures_card("sdds", quick_actions = quick_actions)
         )
       )
     )
@@ -161,6 +130,7 @@ example_ui <- function(timezone, default_theme = "cosmo") {
 
 example_server <- function(
   token,
+  quick_actions = list(),
   default_theme = "cosmo",
   accessible_core_ids = NULL
 ) {
@@ -179,27 +149,13 @@ example_server <- function(
       ))
     })
 
-    # show data structure and common actions and disable/enable common actions
-    observeEvent(sdds$devices$get_selected_ids(), {
-      device_selected <- !is_empty(sdds$devices$get_selected_ids())
-      shinyjs::toggleState("restart", condition = device_selected)
-      shinyjs::toggleState("save", condition = device_selected)
-    })
-
-    # sdds
-    sdds <- sdds_server(
+    # sdds module (the quick actions and their gating are wired inside the module)
+    sdds_server(
       "sdds",
       token,
       timezone = reactive(input$timezone),
-      accessible_core_ids = accessible_core_ids
+      accessible_core_ids = accessible_core_ids,
+      quick_actions = quick_actions
     )
-
-    # common actions
-    observeEvent(input$restart, {
-      sdds$edit_structure("SYSTEM.action", value = "restart")
-    })
-    observeEvent(input$save, {
-      sdds$edit_structure("SYSTEM.action", value = "saveState")
-    })
   }
 }

@@ -53,7 +53,7 @@ module_selector_table_server <- function(
   # safety checks
   stopifnot(!missing(get_data))
   stopifnot(!missing(id_column))
-  filter = match.arg(filter)
+  filter <- match.arg(filter)
 
   # actual module server
   moduleServer(id, function(input, output, session) {
@@ -347,7 +347,7 @@ module_selector_table_server <- function(
     }
 
     # edit data table ========================
-    proxy = DT::dataTableProxy("selection_table")
+    proxy <- DT::dataTableProxy("selection_table")
     observeEvent(input$selection_table_cell_edit, {
       # this only makes sense for cell edit and immediate save
       if (nrow(input$selection_table_cell_edit) > 1) {
@@ -535,7 +535,11 @@ module_selector_table_server <- function(
       # columns marked invisible via columnDefs - targets are 0-based positions
       # within the currently visible columns, map them back to df column indices
       for (def in values$options$columnDefs) {
-        if (isFALSE(def$visible) && is.numeric(def$targets) && all(def$targets >= 0)) {
+        if (
+          isFALSE(def$visible) &&
+            is.numeric(def$targets) &&
+            all(def$targets >= 0)
+        ) {
           protected <- c(protected, values$visible_cols[def$targets + 1L])
         }
       }
@@ -577,7 +581,10 @@ module_selector_table_server <- function(
         values$visible_cols,
         get_protected_col_indices()
       )
-      new_visible <- sort(unique(c(protected_visible, as.integer(input$visible_cols))))
+      new_visible <- sort(unique(c(
+        protected_visible,
+        as.integer(input$visible_cols)
+      )))
       if (set_visible_columns(new_visible)) {
         log_info(
           ns = ns,

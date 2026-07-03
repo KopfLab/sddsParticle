@@ -10,24 +10,74 @@ sdds_ui_devices_table <- function(id) {
   module_selector_table_ui(ns("devices"))
 }
 
-#' @describeIn sdds_module generates the ui for the sdds devices action links
+#' @param ... additional parameters passed on to the underlying button
+#' @describeIn sdds_module generates the refresh button for the sdds devices table
 #' @export
-sdds_ui_devices_actions <- function(id) {
+sdds_ui_devices_refresh <- function(id, ...) {
   ns <- NS(id)
-  tagList(
-    actionButton(
-      ns("refresh_devices"),
-      "Refresh",
-      icon = icon("arrows-rotate"),
-    ) |>
-      add_tooltip("Refresh device list."),
-    module_selector_table_select_all_button(
-      ns("devices"),
-      border = FALSE
-    ),
-    module_selector_table_deselect_all_button(
-      ns("devices"),
-      border = FALSE
+  actionButton(
+    ns("refresh_devices"),
+    "Refresh",
+    icon = icon("arrows-rotate"),
+    ...
+  ) |>
+    add_tooltip("Refresh device list.")
+}
+
+#' @describeIn sdds_module generates the select all button for the sdds devices table
+#' @export
+sdds_ui_devices_select_all <- function(id, ...) {
+  ns <- NS(id)
+  module_selector_table_select_all_button(ns("devices"), ...)
+}
+
+#' @describeIn sdds_module generates the deselect all button for the sdds devices table
+#' @export
+sdds_ui_devices_deselect_all <- function(id, ...) {
+  ns <- NS(id)
+  module_selector_table_deselect_all_button(ns("devices"), ...)
+}
+
+#' @describeIn sdds_module generates the adjust-columns button for the sdds devices table
+#' @export
+sdds_ui_devices_columns <- function(id, ...) {
+  ns <- NS(id)
+  module_selector_table_columns_button(ns("devices"), ...)
+}
+
+#' @param full_screen whether the devices card can be expanded to full screen
+#' @param footer content to show below the devices table (e.g. a hint), set to `NULL` to omit
+#' @describeIn sdds_module generates the complete sdds devices selection card (selection/view/refresh buttons, the devices table and a footer) ready to drop into a host layout such as a sidebar - for the table to fill the vertical space, place it in a fillable container (e.g. `bslib::sidebar(fillable = TRUE)`)
+#' @export
+sdds_ui_devices_card <- function(
+  id,
+  ...,
+  full_screen = TRUE,
+  footer = "Select the devices you want to work with."
+) {
+  bslib::card(
+    full_screen = full_screen,
+    ...,
+    bslib::card_body(
+      div(
+        class = "d-flex align-items-center justify-content-between gap-2 mb-2",
+        # left: selection controls
+        div(
+          class = "d-flex gap-2",
+          sdds_ui_devices_select_all(id),
+          sdds_ui_devices_deselect_all(id)
+        ),
+        # right: view + refresh controls
+        div(
+          class = "d-flex gap-2",
+          sdds_ui_devices_columns(id),
+          sdds_ui_devices_refresh(id)
+        )
+      ),
+      sdds_ui_devices_table(id),
+      if (!is.null(footer)) {
+        div(class = "text-muted mt-2", footer)
+      }
     )
   )
 }
@@ -67,6 +117,8 @@ sdds_ui_structures_fetch_data <- function(id, ...) {
 #' @export
 sdds_ui_structures_actions <- function(id, space = 1) {
   ns <- NS(id)
+  # these action buttons are always enabled - they either operate on the
+  # selected devices or (for the send queue) show whatever is currently queued
   tagList(
     actionButton(
       ns("send_commands"),
@@ -75,8 +127,7 @@ sdds_ui_structures_actions <- function(id, space = 1) {
     ) |>
       add_tooltip(
         "Send commands to make the changes."
-      ) |>
-      shinyjs::disabled(),
+      ),
     spaces(space),
     actionButton(
       ns("show_hide_publishing"),
@@ -85,8 +136,7 @@ sdds_ui_structures_actions <- function(id, space = 1) {
     ) |>
       add_tooltip(
         "Show/hide the publishing settings for each variable."
-      ) |>
-      shinyjs::disabled(),
+      ),
     spaces(space),
     actionButton(
       ns("show_hide_system"),
@@ -95,8 +145,7 @@ sdds_ui_structures_actions <- function(id, space = 1) {
     ) |>
       add_tooltip(
         "Show/hide the HARDWARE menu items."
-      ) |>
-      shinyjs::disabled(),
+      ),
     spaces(space),
     actionButton(
       ns("show_hide_hardware"),
@@ -106,8 +155,7 @@ sdds_ui_structures_actions <- function(id, space = 1) {
     ) |>
       add_tooltip(
         "Show/hide the HARDWARE menu items."
-      ) |>
-      shinyjs::disabled(),
+      ),
     spaces(space),
     actionButton(
       ns("command_logs"),
@@ -116,8 +164,7 @@ sdds_ui_structures_actions <- function(id, space = 1) {
     ) |>
       add_tooltip(
         "Show latest commands sent to devices."
-      ) |>
-      shinyjs::disabled(),
+      ),
     spaces(space),
     actionButton(
       ns("events_stream"),
@@ -126,8 +173,111 @@ sdds_ui_structures_actions <- function(id, space = 1) {
     ) |>
       add_tooltip(
         "Show events sent by the selected devices."
-      ) |>
-      shinyjs::disabled()
+      )
+  )
+}
+
+#' Define a quick action
+#'
+#' Defines a quick action button for the "Quick actions" popover of
+#' [sdds_ui_structures_card()]. Pressing the button calls the sdds module's
+#' `edit_structure(path, value, flag_as_changed)` (see [sdds_server()]), so the
+#' same list of quick actions must be passed to both [sdds_ui_structures_card()]
+#' and [sdds_server()].
+#'
+#' @param id the input id for the quick action button (must be unique within the module)
+#' @param label the button label
+#' @param icon optional button icon (e.g. from [shiny::icon()])
+#' @param path the SDDS path the quick action edits
+#' @param value the value to set for the path, `NULL` to just select it
+#' @param flag_as_changed whether to flag the value as changed
+#' @return a quick action definition (a list) for use with [sdds_ui_structures_card()] and [sdds_server()]
+#' @export
+quick_action <- function(
+  id,
+  label,
+  icon = NULL,
+  path,
+  value = NULL,
+  flag_as_changed = !is.null(value)
+) {
+  id |>
+    check_arg(!missing(id) && is_scalar_character(id), "must be a string")
+  path |>
+    check_arg(!missing(path) && is_scalar_character(path), "must be a string")
+  list(
+    id = id,
+    label = label,
+    icon = icon,
+    path = path,
+    value = value,
+    flag_as_changed = flag_as_changed
+  )
+}
+
+#' @param quick_actions a list of [quick_action()] definitions to show in the "Quick actions" popover (empty list omits the popover); the same list must be passed to [sdds_server()] to wire the buttons
+#' @param min_height minimum height of the data structures card
+#' @param title the data structures card title
+#' @describeIn sdds_module generates the complete data structures card (request-data button, "Quick actions" and "Controls" popovers, the structures table and a footer) ready to drop into a host layout
+#' @export
+sdds_ui_structures_card <- function(
+  id,
+  quick_actions = list(),
+  ...,
+  full_screen = TRUE,
+  min_height = 400,
+  footer = "Select structure entry to change values.",
+  title = "Data structures"
+) {
+  ns <- NS(id)
+  bslib::card(
+    full_screen = full_screen,
+    min_height = min_height,
+    ...,
+    bslib::card_header(
+      class = "d-flex align-items-center gap-2",
+      icon("folder-tree"),
+      title,
+      # right aligned action buttons; each opens a popover on click that is
+      # dismissed by clicking outside of it (see sdds_header())
+      div(
+        class = "ms-auto d-flex gap-2",
+        sdds_ui_structures_fetch_data(id),
+        if (length(quick_actions) > 0) {
+          bslib::popover(
+            actionButton(
+              ns("quick_actions"),
+              "Quick actions",
+              icon = icon("bolt-lightning")
+            ) |>
+              shinyjs::disabled(),
+            title = "Quick actions",
+            div(
+              class = "d-flex flex-column gap-2",
+              purrr::map(quick_actions, function(qa) {
+                actionButton(ns(qa$id), qa$label, icon = qa$icon)
+              })
+            )
+          )
+        },
+        bslib::popover(
+          actionButton(
+            ns("controls"),
+            "Controls",
+            icon = icon("gears")
+          ),
+          title = "Controls",
+          div(
+            class = "d-flex flex-column gap-2",
+            sdds_ui_structures_actions(id, space = 0)
+          )
+        )
+      )
+    ),
+    sdds_ui_structures_table(id),
+    if (!is.null(footer)) {
+      bslib::card_footer(footer)
+    }
   )
 }
 
@@ -146,7 +296,32 @@ sdds_header <- function() {
         border-color: #28a745 !important;
         box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
       }
+      /* keep action popovers below modals so they can't cover an open modal */
+      .popover { z-index: 1040; }
       "
+    )),
+    # dismiss (click-triggered) popovers when clicking outside of them - focus
+    # triggered popovers cannot be used because they lose their interactive
+    # content when a button inside is clicked
+    tags$script(HTML(
+      "(function() {
+        if (window.__sddsPopoverOutsideClose) return;
+        window.__sddsPopoverOutsideClose = true;
+        function hideOpenPopovers(except) {
+          if (!window.bootstrap || !window.bootstrap.Popover) return;
+          document.querySelectorAll('[data-bs-toggle=popover]').forEach(function(trigger) {
+            var inst = window.bootstrap.Popover.getInstance(trigger);
+            if (!inst || !inst.tip || !inst.tip.classList.contains('show')) return;
+            if (except && (trigger.contains(except) || inst.tip.contains(except))) return;
+            inst.hide();
+          });
+        }
+        // dismiss when clicking outside the popover and its trigger
+        document.addEventListener('click', function(e) { hideOpenPopovers(e.target); });
+        // dismiss once a modal has fully CLOSED - hiding while a modal is showing
+        // corrupts the popover's relocated content (the buttons disappear)
+        document.addEventListener('hidden.bs.modal', function() { hideOpenPopovers(null); });
+      })();"
     ))
   )
 }
@@ -158,7 +333,8 @@ sdds_server <- function(
   id,
   token,
   timezone = Sys.timezone(),
-  accessible_core_ids = NULL
+  accessible_core_ids = NULL,
+  quick_actions = list()
 ) {
   # make timezone into a function if it's not
   if (!is.function(timezone)) {
@@ -259,6 +435,8 @@ sdds_server <- function(
         columnDefs = list(
           list(visible = FALSE, targets = 0)
         ),
+        # show only coreid (hidden), Name, Type, Version and Connected by default
+        visible_columns = c(1, 2, 3, 4, 6),
         # view all
         paging = FALSE,
         dom = "ft",
@@ -400,15 +578,11 @@ sdds_server <- function(
       return(out$result)
     })
 
-    ## button availability
+    ## button availability - only the "request latest data" button is gated by
+    ## device selection; the structure action buttons are always enabled
     observeEvent(devices$get_selected_ids(), {
       device_selected <- !is_empty(devices$get_selected_ids())
       shinyjs::toggleState("fetch_values", condition = device_selected)
-      shinyjs::toggleState("command_logs", condition = device_selected)
-      shinyjs::toggleState("events_stream", condition = device_selected)
-      shinyjs::toggleState("show_hide_publishing", condition = device_selected)
-      shinyjs::toggleState("show_hide_system", condition = device_selected)
-      shinyjs::toggleState("show_hide_hardware", condition = device_selected)
     })
 
     ## fetch new values
@@ -626,6 +800,10 @@ sdds_server <- function(
       out |> log_cnds(ns = ns)
       structure <- out$result
       if (is.null(structure)) {
+        log_warning(
+          ns = ns,
+          user_msg = "This action is not available for any of the selected devices"
+        )
         return()
       }
 
@@ -825,22 +1003,13 @@ sdds_server <- function(
         arrange(desc(row_id))
     })
 
-    ## disable/enable send button in structures
-    observeEvent(
-      values$command_queue,
-      {
-        shinyjs::toggleState(
-          "send_commands",
-          condition = !is_empty(values$command_queue)
-        )
-      },
-      ignoreNULL = FALSE
-    )
-
-    ## trigger modal dialog
+    ## trigger modal dialog (warn instead of opening it on an empty queue)
     observeEvent(input$send_commands, {
-      req(nrow(values$command_queue) > 0)
-      showModal(queue_modal)
+      if (nrow(values$command_queue) == 0) {
+        log_warning(ns = ns, user_msg = "Send queue is still empty")
+      } else {
+        showModal(queue_modal)
+      }
     })
 
     ## triger selection after loading
@@ -1096,7 +1265,9 @@ sdds_server <- function(
     # show events modal
     observeEvent(input$events_stream, {
       log_info(ns = ns, user_msg = "Fetching events stream")
-      if (is_empty(get_stream_events())) {
+      if (is_empty(devices$get_selected_ids())) {
+        log_warning(ns = ns, user_msg = "No devices selected")
+      } else if (is_empty(get_stream_events())) {
         log_warning(ns = ns, user_msg = "No events logged yet")
       } else {
         showModal(events_modal)
@@ -1173,13 +1344,25 @@ sdds_server <- function(
 
     # command logs ==============
 
+    ## the selected devices together with their connection status
+    get_selected_devices <- reactive({
+      req(get_devices())
+      get_devices() |>
+        filter(.data$coreid %in% devices$get_selected_ids())
+    })
+
     ## function to get the command logs
     get_command_logs_for_table <- reactive({
       req(input$command_logs)
 
+      # only fetch logs for devices that are actually connected
+      core_ids <- isolate(get_selected_devices()) |>
+        filter(.data$connected) |>
+        pull(.data$coreid)
+
       # the function call returns aggregated out object
       out <- particle_get_and_parse_sdds_command_logs(
-        core_ids = isolate(devices$get_selected_ids()),
+        core_ids = core_ids,
         timezone = isolate(get_timezone()),
         token = token
       )
@@ -1209,6 +1392,25 @@ sdds_server <- function(
     )
     observeEvent(input$command_logs, {
       log_info(ns = ns, user_msg = "Fetching command logs")
+      if (is_empty(devices$get_selected_ids())) {
+        log_warning(ns = ns, user_msg = "No devices selected")
+        return()
+      }
+      # warn about (and skip) selected devices that are not connected
+      selected <- get_selected_devices()
+      disconnected <- selected |> filter(!.data$connected)
+      if (nrow(disconnected) > 0) {
+        log_warning(
+          ns = ns,
+          user_msg = format_inline(
+            "Cannot fetch command logs for disconnected device{?s} {disconnected$name}"
+          )
+        )
+      }
+      # only open the modal if at least one selected device is connected
+      if (!any(selected$connected)) {
+        return()
+      }
       req(get_command_logs_for_table())
       showModal(logs_modal)
     })
@@ -1228,6 +1430,27 @@ sdds_server <- function(
         scrollY = "250px",
         selection = "none"
       )
+
+    # quick actions ======
+    if (length(quick_actions) > 0) {
+      # only enable the quick actions trigger when a device is selected
+      observeEvent(devices$get_selected_ids(), {
+        shinyjs::toggleState(
+          "quick_actions",
+          condition = !is_empty(devices$get_selected_ids())
+        )
+      })
+      # wire each quick action button to edit_structure
+      purrr::walk(quick_actions, function(qa) {
+        observeEvent(input[[qa$id]], {
+          edit_structure(
+            path = qa$path,
+            value = qa$value,
+            flag_as_changed = qa$flag_as_changed
+          )
+        })
+      })
+    }
 
     # return functions ======
     list(

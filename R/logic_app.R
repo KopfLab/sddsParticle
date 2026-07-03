@@ -50,7 +50,7 @@ get_devices_for_table_in_app <- function(devices, timezone) {
     mutate(version = version_value_to_text(.data$version)) |>
     select(
       "coreid",
-      Name = "name",
+      Device = "name",
       Type = "type",
       Version = "version",
       `Last heard from` = "last_heard",
@@ -286,7 +286,10 @@ get_pretty_json_event_data_for_app <- function(events) {
 ## value edits ======
 
 get_structures_for_path_in_app <- function(structures, path) {
-  structures |> filter(.data$path == !!path)
+  if (is.null(structures)) {
+    return(NULL)
+  }
+  structures |> dplyr::filter(.data$path == !!path)
 }
 
 prepare_edit_ui_in_app <- function(

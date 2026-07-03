@@ -2,11 +2,16 @@
 % Please edit documentation in R/app_module_sdds.R
 \name{sdds_ui_devices_table}
 \alias{sdds_ui_devices_table}
-\alias{sdds_ui_devices_actions}
+\alias{sdds_ui_devices_refresh}
+\alias{sdds_ui_devices_select_all}
+\alias{sdds_ui_devices_deselect_all}
+\alias{sdds_ui_devices_columns}
+\alias{sdds_ui_devices_card}
 \alias{sdds_ui_structures_div}
 \alias{sdds_ui_structures_table}
 \alias{sdds_ui_structures_fetch_data}
 \alias{sdds_ui_structures_actions}
+\alias{sdds_ui_structures_card}
 \alias{sdds_header}
 \alias{sdds_server}
 \alias{sdds_onstart}
@@ -14,7 +19,20 @@
 \usage{
 sdds_ui_devices_table(id)
 
-sdds_ui_devices_actions(id)
+sdds_ui_devices_refresh(id, ...)
+
+sdds_ui_devices_select_all(id, ...)
+
+sdds_ui_devices_deselect_all(id, ...)
+
+sdds_ui_devices_columns(id, ...)
+
+sdds_ui_devices_card(
+  id,
+  ...,
+  full_screen = TRUE,
+  footer = "Select the devices you want to work with."
+)
 
 sdds_ui_structures_div(id, ...)
 
@@ -24,14 +42,42 @@ sdds_ui_structures_fetch_data(id, ...)
 
 sdds_ui_structures_actions(id, space = 1)
 
+sdds_ui_structures_card(
+  id,
+  quick_actions = list(),
+  ...,
+  full_screen = TRUE,
+  min_height = 400,
+  footer = "Select structure entry to change values.",
+  title = "Data structures"
+)
+
 sdds_header()
 
-sdds_server(id, token, timezone = Sys.timezone(), accessible_core_ids = NULL)
+sdds_server(
+  id,
+  token,
+  timezone = Sys.timezone(),
+  accessible_core_ids = NULL,
+  quick_actions = list()
+)
 
 sdds_onstart(token, event = "sddsData")
 }
 \arguments{
 \item{id}{module id}
+
+\item{...}{additional parameters passed on to the underlying button}
+
+\item{full_screen}{whether the devices card can be expanded to full screen}
+
+\item{footer}{content to show below the devices table (e.g. a hint), set to \code{NULL} to omit}
+
+\item{quick_actions}{a list of \code{\link[=quick_action]{quick_action()}} definitions to show in the "Quick actions" popover (empty list omits the popover); the same list must be passed to \code{\link[=sdds_server]{sdds_server()}} to wire the buttons}
+
+\item{min_height}{minimum height of the data structures card}
+
+\item{title}{the data structures card title}
 
 \item{token}{particle access token (retrieved from keyring by default), save a token in your keyring with particle_store_token()}
 
@@ -46,7 +92,15 @@ SDDS shiny Module.
 \itemize{
 \item \code{sdds_ui_devices_table()}: generates the ui for the sdds devices table
 
-\item \code{sdds_ui_devices_actions()}: generates the ui for the sdds devices action links
+\item \code{sdds_ui_devices_refresh()}: generates the refresh button for the sdds devices table
+
+\item \code{sdds_ui_devices_select_all()}: generates the select all button for the sdds devices table
+
+\item \code{sdds_ui_devices_deselect_all()}: generates the deselect all button for the sdds devices table
+
+\item \code{sdds_ui_devices_columns()}: generates the adjust-columns button for the sdds devices table
+
+\item \code{sdds_ui_devices_card()}: generates the complete sdds devices selection card (selection/view/refresh buttons, the devices table and a footer) ready to drop into a host layout such as a sidebar - for the table to fill the vertical space, place it in a fillable container (e.g. \code{bslib::sidebar(fillable = TRUE)})
 
 \item \code{sdds_ui_structures_div()}: generates the ui for the sdds structures div (include in your UI layout to show/hide when devices are selected)
 
@@ -55,6 +109,8 @@ SDDS shiny Module.
 \item \code{sdds_ui_structures_fetch_data()}: generates the request data button
 
 \item \code{sdds_ui_structures_actions()}: generates the ui for the sdds structures action links
+
+\item \code{sdds_ui_structures_card()}: generates the complete data structures card (request-data button, "Quick actions" and "Controls" popovers, the structures table and a footer) ready to drop into a host layout
 
 \item \code{sdds_header()}: call in ui head to include
 

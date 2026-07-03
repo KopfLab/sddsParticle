@@ -476,6 +476,17 @@ particle_stream_get_events_log <- function() {
   if (!file.exists(.ps$events_log)) {
     tibble(timestamp = integer(0) |> as.POSIXct())
   } else {
-    readr::read_tsv(.ps$events_log, show_col_types = FALSE)
+    readr::read_tsv(
+      .ps$events_log,
+      col_types = readr::cols(
+        timestamp = readr::col_datetime(format = ""),
+        event = readr::col_character(),
+        coreid = readr::col_character(),
+        ttl = readr::col_double(),
+        published_at = readr::col_datetime(format = ""),
+        data = readr::col_character(),
+        error = readr::col_character()
+      )
+    )
   }
 }
