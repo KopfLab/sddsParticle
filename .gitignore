@@ -31,3 +31,5 @@ tmp/*
 logs/*
 cache/*
 
+
+**/*.quarto_ipynb
