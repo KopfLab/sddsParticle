@@ -53,10 +53,12 @@ sdds_ui_devices_card <- function(
   id,
   ...,
   full_screen = TRUE,
+  min_height = 400,
   footer = "Select the devices you want to work with."
 ) {
   bslib::card(
     full_screen = full_screen,
+    min_height = min_height,
     ...,
     bslib::card_body(
       div(
@@ -217,7 +219,7 @@ quick_action <- function(
 }
 
 #' @param quick_actions a list of [quick_action()] definitions to show in the "Quick actions" popover (empty list omits the popover); the same list must be passed to [sdds_server()] to wire the buttons
-#' @param min_height minimum height of the data structures card
+#' @param min_height minimum height of the card
 #' @param title the data structures card title
 #' @describeIn sdds_module generates the complete data structures card (request-data button, "Quick actions" and "Controls" popovers, the structures table and a footer) ready to drop into a host layout
 #' @export
