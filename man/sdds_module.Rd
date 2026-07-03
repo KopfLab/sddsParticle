@@ -31,6 +31,7 @@ sdds_ui_devices_card(
   id,
   ...,
   full_screen = TRUE,
+  min_height = 400,
   footer = "Select the devices you want to work with."
 )
 
@@ -71,15 +72,19 @@ sdds_onstart(token, event = "sddsData")
 
 \item{full_screen}{whether the devices card can be expanded to full screen}
 
+\item{min_height}{minimum height of the card}
+
 \item{footer}{content to show below the devices table (e.g. a hint), set to \code{NULL} to omit}
 
-\item{quick_actions}{a list of \code{\link[=quick_action]{quick_action()}} definitions to show in the "Quick actions" popover (empty list omits the popover); the same list must be passed to \code{\link[=sdds_server]{sdds_server()}} to wire the buttons}
+\item{space}{number of non-breaking spaces to insert between the action buttons}
 
-\item{min_height}{minimum height of the data structures card}
+\item{quick_actions}{a list of \code{\link[=sdds_ui_quick_action]{sdds_ui_quick_action()}} definitions to show in the "Quick actions" popover (empty list omits the popover); the same list must be passed to \code{\link[=sdds_server]{sdds_server()}} to wire the buttons}
 
 \item{title}{the data structures card title}
 
 \item{token}{particle access token (retrieved from keyring by default), save a token in your keyring with particle_store_token()}
+
+\item{timezone}{timezone (or a reactive returning one) used for datetime displays}
 
 \item{accessible_core_ids}{the particle devices that are allowed to be controlled}
 

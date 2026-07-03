@@ -196,7 +196,7 @@ sdds_ui_structures_actions <- function(id, space = 1) {
 #' @param flag_as_changed whether to flag the value as changed
 #' @return a quick action definition (a list) for use with [sdds_ui_structures_card()] and [sdds_server()]
 #' @export
-quick_action <- function(
+sdds_ui_quick_action <- function(
   id,
   label,
   icon = NULL,
@@ -218,7 +218,7 @@ quick_action <- function(
   )
 }
 
-#' @param quick_actions a list of [quick_action()] definitions to show in the "Quick actions" popover (empty list omits the popover); the same list must be passed to [sdds_server()] to wire the buttons
+#' @param quick_actions a list of [sdds_ui_quick_action()] definitions to show in the "Quick actions" popover (empty list omits the popover); the same list must be passed to [sdds_server()] to wire the buttons
 #' @param min_height minimum height of the card
 #' @param title the data structures card title
 #' @describeIn sdds_module generates the complete data structures card (request-data button, "Quick actions" and "Controls" popovers, the structures table and a footer) ready to drop into a host layout

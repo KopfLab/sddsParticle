@@ -52,9 +52,17 @@ particle_get_and_parse_sdds_command_logs(
 
 \item{sdds_only}{whether to only return SDDS devices (default TRUE)}
 
+\item{simplify}{whether to drop list-columns and return a flat tibble (default TRUE)}
+
 \item{coreid}{the ID of the particle device to send requests and commands to}
 
 \item{cmds}{SDDS command to send}
+
+\item{core_ids}{character vector of device core IDs}
+
+\item{timezone}{timezone used for datetime conversions}
+
+\item{wide}{whether to return the parsed values in wide format (one column per variable)}
 }
 \description{
 Interact with the particle API

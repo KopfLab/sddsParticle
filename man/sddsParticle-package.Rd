@@ -6,7 +6,7 @@
 \alias{sddsParticle-package}
 \title{sddsParticle: Control SDDS Particle Devices}
 \description{
-This package provides a control GUI for self-describing data structures (SDDS) run on Particle devices.
+Provides a web-based graphical user interface and a matching programmatic interface to monitor and control microcontrollers that run self-describing data structure (SDDS) firmware on Particle (\url{https://www.particle.io}) devices. The SDDS firmware describes its own variable tree, which the interface reads to automatically build an editable view of each device; from there values can be changed, commands queued and sent, the command history inspected, and live data events streamed.
 }
 \seealso{
 Useful links:

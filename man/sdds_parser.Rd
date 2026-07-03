@@ -48,6 +48,10 @@ sdds_parse_state_snapshot(json)
 \arguments{
 \item{events}{tibble from particle_stream_get_events()}
 
+\item{tree_cache_path}{path to the cached trees CSV file}
+
+\item{values_cache_path}{path to the cached tree values CSV file}
+
 \item{ds}{tibble with values_json and tree_json columns, e.g. that created by \link{sdds_read_cached_trees_and_values}}
 
 \item{json}{sdds data in JSON format}
@@ -57,6 +61,16 @@ sdds_parse_state_snapshot(json)
 \item{values}{from \link{sdds_parse_values}}
 
 \item{trees_and_values}{output from \link{sdds_parse_trees_and_values}}
+
+\item{devices}{device info tibble (from \link{particle_get_device_info}) used to add device names}
+
+\item{timezone}{timezone used for datetime conversions}
+
+\item{additional_types}{named list of additional value types to recognize}
+
+\item{additional_converters}{named list of additional value-to-text converter functions}
+
+\item{wide}{whether to return one row with variables as columns (wide format)}
 }
 \description{
 Parse events data

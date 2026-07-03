@@ -25,14 +25,14 @@ sdds_run_gui <- function(
 
   # example quick actions (shown in the data structures card)
   quick_actions <- list(
-    quick_action(
+    sdds_ui_quick_action(
       "restart",
       "Restart",
       icon = icon("gears"),
       path = "SYSTEM.action",
       value = "restart"
     ),
-    quick_action(
+    sdds_ui_quick_action(
       "save",
       "Save state",
       icon = icon("floppy-disk"),
@@ -42,7 +42,10 @@ sdds_run_gui <- function(
   )
 
   # minimalist example ui and server
-  ui <- example_ui(timezone = timezone, quick_actions = quick_actions)
+  ui <- example_ui(
+    timezone = timezone,
+    quick_actions = quick_actions
+  )
   server <- example_server(
     token = token,
     accessible_core_ids = accessible_core_ids,
@@ -61,7 +64,11 @@ sdds_run_gui <- function(
   )
 }
 
-example_ui <- function(timezone, quick_actions = list(), default_theme = "flatly") {
+example_ui <- function(
+  timezone,
+  quick_actions = list(),
+  default_theme = "flatly"
+) {
   # ui function
   function(request) {
     bslib::page_navbar(
@@ -121,7 +128,10 @@ example_ui <- function(timezone, quick_actions = list(), default_theme = "flatly
           ),
 
           # STRUCTURES ========
-          sdds_ui_structures_card("sdds", quick_actions = quick_actions)
+          sdds_ui_structures_card(
+            "sdds",
+            quick_actions = quick_actions
+          )
         )
       )
     )

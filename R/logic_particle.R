@@ -77,6 +77,7 @@ send_request <- function(
 
 #' @param token particle access token (retrieved from keyring by default), save a token in your keyring with particle_store_token()
 #' @param sdds_only whether to only return SDDS devices (default TRUE)
+#' @param simplify whether to drop list-columns and return a flat tibble (default TRUE)
 #' @describeIn particle_api retrieve the particle SDDS devices registered to your account
 #' @export
 particle_get_device_info <- function(
@@ -215,6 +216,9 @@ check_commands_success <- function(retval, n_cmds) {
 
 # convenience functions for multiple core ids =============
 
+#' @param core_ids character vector of device core IDs
+#' @param timezone timezone used for datetime conversions
+#' @param wide whether to return the parsed values in wide format (one column per variable)
 #' @describeIn particle_api get the sdds system values for multiple cores with [particle_get_sdds_system] and parse them right away using [sdds_parse_system]
 #' @export
 particle_get_and_parse_sdds_systems <- function(

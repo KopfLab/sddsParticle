@@ -96,6 +96,8 @@ sdds_cache_events <- function(events) {
   invisible(NULL)
 }
 
+#' @param tree_cache_path path to the cached trees CSV file
+#' @param values_cache_path path to the cached tree values CSV file
 #' @describeIn sdds_parser reads the cached trees and tree values
 sdds_read_cached_trees_and_values <- function(
   tree_cache_path = "cache/sdds_trees.csv",
@@ -505,6 +507,10 @@ sdds_combine_tree_and_values <- function(tree, values) {
 
 
 #' @param trees_and_values output from [sdds_parse_trees_and_values]
+#' @param devices device info tibble (from [particle_get_device_info]) used to add device names
+#' @param timezone timezone used for datetime conversions
+#' @param additional_types named list of additional value types to recognize
+#' @param additional_converters named list of additional value-to-text converter functions
 #' @describeIn sdds_parser simplifies combined trees and values (from [sdds_parse_trees_and_values]), removes the structures themselves only leaving actual data fields
 #' @export
 sdds_simplify_trees_and_values <- function(
@@ -667,6 +673,7 @@ sdds_simplify_trees_and_values <- function(
 }
 
 
+#' @param wide whether to return one row with variables as columns (wide format)
 #' @describeIn sdds_parser parses the system variable from a device
 #' @export
 sdds_parse_system <- function(json, timezone = Sys.timezone(), wide = FALSE) {

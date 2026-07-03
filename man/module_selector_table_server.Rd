@@ -33,6 +33,8 @@ module_selector_table_server(
 )
 }
 \arguments{
+\item{id}{the shiny module id for the selector table}
+
 \item{get_data}{reactive context providing the data set}
 
 \item{id_column}{name of the ID column - must have unique values!! make a rownumber or concatenated column if there is no unique identifier, this column does NOT have to be part of available_columns (but can be)}
@@ -63,9 +65,17 @@ module_selector_table_server(
 
 \item{auto_reselect}{whether to reselect selected rows automatically after reloads}
 
+\item{enable_dblclick}{whether to enable double-click (exclusive) cell/row selection}
+
 \item{render_html}{list of columns which should NOT be html escaped (e.g. for links), use dplyr::everything() to render everything}
 
 \item{formatting_calls}{list of lists with function and columns e.g. list(list(func = formatCurrency, columns = "x)) or a columns expressione.g. list(list(func = formatCurrencty, columns_expr = rlang::expr(matches("abc"))))}
+
+\item{editable}{whether the table cells are editable (passed to DT::datatable)}
+
+\item{extensions}{character vector of DataTables extensions to enable (passed to DT::datatable)}
+
+\item{no_data_message}{message shown when the table has no data}
 
 \item{paging}{TRUE/FALSE whether to have paging information}
 
