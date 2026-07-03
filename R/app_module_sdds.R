@@ -113,6 +113,7 @@ sdds_ui_structures_fetch_data <- function(id, ...) {
 }
 
 
+#' @param space number of non-breaking spaces to insert between the action buttons
 #' @describeIn sdds_module generates the ui for the sdds structures action links
 #' @export
 sdds_ui_structures_actions <- function(id, space = 1) {
@@ -327,6 +328,7 @@ sdds_header <- function() {
 }
 
 #' @param accessible_core_ids the particle devices that are allowed to be controlled
+#' @param timezone timezone (or a reactive returning one) used for datetime displays
 #' @describeIn sdds_module generates the server for the sdds module
 #' @export
 sdds_server <- function(
@@ -771,12 +773,13 @@ sdds_server <- function(
             shinyjs::disabled(),
           modalButton("Cancel")
         ),
-        size = "m",
+        size = "l",
         easyClose = TRUE
       )
     output$edit_path <- renderText({
-      req(structures$get_selected_ids())
-      structures$get_selected_ids()
+      req(values$edit_structure)
+      req(values$edit_structure$path)
+      unique(values$edit_structure$path)
     })
     output$edit_widgets <- renderUI({
       req(edit_modal_values_widgets())
