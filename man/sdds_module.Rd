@@ -60,7 +60,8 @@ sdds_server(
   token,
   timezone = Sys.timezone(),
   accessible_core_ids = NULL,
-  quick_actions = list()
+  quick_actions = list(),
+  additional_value_types = list()
 )
 
 sdds_onstart(token, event = "sddsData")
@@ -87,6 +88,8 @@ sdds_onstart(token, event = "sddsData")
 \item{timezone}{timezone (or a reactive returning one) used for datetime displays}
 
 \item{accessible_core_ids}{the particle devices that are allowed to be controlled}
+
+\item{additional_value_types}{named list of \code{\link[=sdds_value_type]{sdds_value_type()}} definitions that add custom value editors (keyed by type name), e.g. a resistance editor provided by a host package}
 
 \item{event}{the name of the event to listen to, default is "sddsData"}
 }

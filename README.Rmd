@@ -78,7 +78,7 @@ Then launch the example GUI:
 sdds_run_gui()
 ```
 
-You can restrict the app to a subset of devices and set a display timezone:
+You can restrict the app to a subset of devices:
 
 ``` r
 sdds_run_gui(accessible_core_ids = c("0a10aced20f19d944a058c00"))
@@ -146,11 +146,45 @@ server <- function(input, output, session) {
 shinyApp(ui, server, onStart = sdds_onstart(token = keyring::key_get("particle")))
 ```
 
-Key module pieces: `sdds_header()`, `sdds_ui_devices_card()`,
-`sdds_ui_structures_card()`, `sdds_server()`, `sdds_onstart()`, and
-`sdds_ui_quick_action()`. Finer-grained building blocks (`sdds_ui_devices_table()`,
-`sdds_ui_structures_actions()`, individual device buttons, …) are also exported for
-custom layouts.
+## Custom value editors
+
+The structure editor picks an input widget automatically from each value's type
+(integer, double, enum, duration, etc.). However, a host app can additional register its own value types — for example an editor for a resistance stored in Ohm that
+switches between Ohm/kOhm/MOhm — and pass it to `sdds_server()`:
+
+``` r
+# convert between the stored value (in Ohm) and the displayed value + units
+res_to_input <- function(value, units) {
+  if (value > 1e6) list(v = value / 1e6, u = "MOhm")
+  else if (value > 1e3) list(v = value / 1e3, u = "kOhm")
+  else list(v = value, u = "Ohm")
+}
+res_to_value <- function(input, units) {
+  input$v * switch(input$u, MOhm = 1e6, kOhm = 1e3, 1)
+}
+
+# build the editor: a numeric value shown next to a units selector
+resistance_editor <- function(id) {
+  input_module_selectable_units(
+    id,
+    value_to_input = res_to_input,
+    input_to_value = res_to_value,
+    value_to_text  = function(value, units) with(res_to_input(value, units), paste(v, u)),
+    units_options  = c("Ohm", "kOhm", "MOhm")
+  )
+}
+
+# register it — `condition` decides which structure values use this editor
+sdds_server(
+  "sdds", token = keyring::key_get("particle"),
+  additional_value_types = list(
+    resistance = sdds_value_type(
+      condition = base_units == "Ohm",
+      module    = resistance_editor
+    )
+  )
+)
+```
 
 ## Programmatic API
 

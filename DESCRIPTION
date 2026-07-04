@@ -1,6 +1,6 @@
 Package: sddsParticle
 Title: Control SDDS Particle Devices
-Version: 0.7.0
+Version: 0.7.1
 Authors@R: 
     person("Sebastian", "Kopf", , "seb.kopf@gmail.com", role = c("aut", "cre"))
 Description: Provides a web-based graphical user interface and a matching

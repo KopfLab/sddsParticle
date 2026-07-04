@@ -331,6 +331,7 @@ sdds_header <- function() {
 
 #' @param accessible_core_ids the particle devices that are allowed to be controlled
 #' @param timezone timezone (or a reactive returning one) used for datetime displays
+#' @param additional_value_types named list of [sdds_value_type()] definitions that add custom value editors (keyed by type name), e.g. a resistance editor provided by a host package
 #' @describeIn sdds_module generates the server for the sdds module
 #' @export
 sdds_server <- function(
@@ -338,7 +339,8 @@ sdds_server <- function(
   token,
   timezone = Sys.timezone(),
   accessible_core_ids = NULL,
-  quick_actions = list()
+  quick_actions = list(),
+  additional_value_types = list()
 ) {
   # make timezone into a function if it's not
   if (!is.function(timezone)) {
@@ -536,13 +538,8 @@ sdds_server <- function(
         get_structures_in_app(
           devices = get_devices(),
           timezone = get_timezone(),
-          # TODO: these should be coming from the additional value modules/types/converters
-          additional_types = list(
-            "resistance" = expr(.data$base_units == "Ohm")
-          ),
-          additional_converters = list(
-            "resistance" = edit_modules$resistance$value_to_text
-          )
+          additional_types = additional_types,
+          additional_converters = additional_converters
         ) |>
         try_catch_cnds()
       out |> log_cnds(ns = ns)
@@ -714,10 +711,17 @@ sdds_server <- function(
       "duration" = value_duration_input("duration"),
       "hhmm" = value_hhmm_input("hhmm", get_timezone = get_timezone),
       "byte" = value_byte_input("byte"),
-      "var_interval" = value_var_intervals_input("var_interval"),
-      # TODO: move to micrologger
-      "resistance" = value_resistance_input("resistance")
+      "var_interval" = value_var_intervals_input("var_interval")
     )
+
+    # additional value types / editors provided by the host app
+    additional_edit_modules <- additional_value_types |>
+      purrr::imap(~ .x$module(.y))
+    edit_modules <- c(edit_modules, additional_edit_modules)
+    # the type-detection conditions and text converters for those types
+    additional_types <- additional_value_types |> purrr::map(~ .x$condition)
+    additional_converters <- additional_edit_modules |>
+      purrr::map(~ .x$value_to_text)
 
     # editing modal dialog
     edit_modal_values_widgets <- reactiveVal()

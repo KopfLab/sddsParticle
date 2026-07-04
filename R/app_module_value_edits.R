@@ -285,7 +285,27 @@ input_module <- function(
   })
 }
 
-# input module with select units
+#' Value edit module with selectable units
+#'
+#' Builds a value edit module for a numeric value shown together with a units
+#' selector, converting between the stored value and the displayed value/units.
+#' Intended for building custom value editors that are passed to [sdds_server()]
+#' via [sdds_value_type()] (e.g. a resistance editor in a host package).
+#'
+#' @param id the module id
+#' @param input_to_value function turning the UI input (a `list(v, u)` of value and units) into the stored value
+#' @param value_to_input function turning a stored value into the UI input (a `list(v, u)`)
+#' @param value_to_text function turning a stored value into its display text
+#' @param units_options character vector of the available units
+#' @param make_gui optional function building the input widget row (defaults to a numeric input plus a units selector)
+#' @param input_step step size for the numeric input
+#' @param fetch_input function reading the current input list from the collected ui inputs
+#' @param correct_input function to correct/validate a fetched input
+#' @param compare_input function comparing two inputs for equality (change detection)
+#' @param update_input function updating the UI inputs to a given input
+#' @param flag_input_changed function flagging the UI inputs as changed
+#' @return a value edit module (a list of functions used by [sdds_server()])
+#' @export
 input_module_selectable_units <- function(
   id,
   input_to_value,
@@ -655,39 +675,22 @@ value_byte_input <- function(id) {
   )
 }
 
-
-# TODO: move the resistance functionliaty into microloger only
-resistance_value_to_input <- function(value, units) {
-  if (value > 1e6) {
-    list(v = value / 1e6, u = "MOhm")
-  } else if (value > 1e3) {
-    list(v = value / 1e3, u = "kOhm")
-  } else {
-    list(v = value, u = "Ohm")
-  }
-}
-
-resistance_input_to_value <- function(input, units) {
-  if (input$u == "MOhm") {
-    input$v * 1e6
-  } else if (input$u == "kOhm") {
-    input$v * 1e3
-  } else {
-    input$v
-  }
-}
-
-resistance_value_to_text <- function(value, units) {
-  input <- resistance_value_to_input(value, units)
-  paste(input$v, input$u)
-}
-
-value_resistance_input <- function(id) {
-  input_module_selectable_units(
-    id = id,
-    value_to_input = resistance_value_to_input,
-    input_to_value = resistance_input_to_value,
-    value_to_text = resistance_value_to_text,
-    units_options = c("Ohm", "kOhm", "MOhm")
-  )
+#' Define an additional value type for the sdds editor
+#'
+#' Defines a custom value type that a host package can add to the sdds value
+#' editor via the `additional_value_types` argument of [sdds_server()]. This
+#' keeps package-specific editors (e.g. a resistance editor) out of sddsParticle
+#' itself. The list of value types is keyed by the type name.
+#'
+#' @param condition an expression, evaluated against the structure table, that
+#'   identifies values of this type, e.g. `.data$base_units == "Ohm"`
+#' @param module a function of a single `id` argument that builds the value edit
+#'   module for this type (typically via [input_module_selectable_units()])
+#' @return an sdds value type definition (a list) for use with [sdds_server()]
+#' @export
+sdds_value_type <- function(condition, module) {
+  condition <- rlang::enexpr(condition)
+  module |>
+    check_arg(!missing(module) && is.function(module), "must be a function")
+  list(condition = condition, module = module)
 }
