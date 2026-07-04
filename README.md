@@ -123,7 +123,30 @@ that provides access to the low level hardware components of the device.
 If this section exists and what it contains depends on each device. The
 *Controls -\> Show HARDWARE* toggle reveals this section.
 
-**2. Use quick actions.**
+**2. Use quick actions.** The *Quick actions* menu (top-right of the
+data structures card) collects one-click shortcuts to the most common
+operations — they open the edit dialog focused on a specific variable
+from the data structure tree so the user does not have to search for
+them in the tree first. **The set of available quick actions is defined
+by each app**: the example app (`sdds_run_gui()`) provides the ones
+listed below, while apps built on the sddsParticle module can define
+their own (see [Building your own app](#building-your-own-app)).
+
+- **Restart** — restart the device (`SYSTEM.action = restart`).
+- **Save state** — write the current settings to the device’s permanent
+  memory (`SYSTEM.action = saveState`) so they survive a power cycle.
+- **Change publish interval** — edit the device-wide global publish
+  interval (`SYSTEM.publishing.globalInterval_ms`).
+- **Start recording** / **Stop recording** — turn data
+  recording/publishing to the cloud on or off
+  (`SYSTEM.publishing.record`).
+
+<figure>
+<img src="man/figures/README-quick_actions.png"
+alt="The Quick actions menu of the example app" />
+<figcaption aria-hidden="true">The Quick actions menu of the example
+app</figcaption>
+</figure>
 
 **3. Explore and edit the data structure.** The quick actions provide
 direct access to some of the most common variable in the data structure.
@@ -142,7 +165,17 @@ specific action dropdowns.
 enumeration value with specific options to choose
 from](man/figures/README-structure_dropdown.png)
 
-**3. Edit the publishing behaviour of individual variables.** Beyond the
+Two things to keep in mind when you change a value: the change command
+is sent to the device(s) right away, but the structure table keeps
+showing the values from the last fetch — click *Request latest data* to
+pull the updated values back from the device(s) and confirm the change
+took effect. And a change to a *saveable* variable only lives in the
+device’s working memory until you run the **Save state** quick action
+(`SYSTEM.action = saveState`, see quick actions); until then it is not
+written to permanent memory and is lost on the next restart or power
+cycle.
+
+**4. Edit the publishing behaviour of individual variables.** Beyond the
 device-wide global record toggle and publishing interval (see quick
 actions), **every variable can be published on its own schedule**. When
 you open a structure entry to edit it, the dialog has a second
@@ -190,7 +223,7 @@ alt="Editing the individual variable publishing" />
 publishing</figcaption>
 </figure>
 
-**4. Review and send the command queue.** Edited values can be sent
+**5. Review and send the command queue.** Edited values can be sent
 right away or added to a queue first. Open *Controls -\> Send queue* to
 see commands that have been sent, review pending commands and send (or
 resend) selected commands to the devices.
@@ -200,7 +233,7 @@ resend) selected commands to the devices.
 <figcaption aria-hidden="true">Command queue</figcaption>
 </figure>
 
-**4. Check live events.** *Controls - \> Show events* opens a table of
+**6. Check live events.** *Controls - \> Show events* opens a table of
 the data events streamed from the selected devices, with the full
 payload shown as formatted JSON.
 
