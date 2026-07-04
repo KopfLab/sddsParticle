@@ -36,7 +36,10 @@ GUI</figcaption>
 - **Self-describing UI** — reads each device’s structure tree and
   renders it as an editable table; the appropriate input widget
   (integer, double, enum, duration, etc.) is chosen automatically from
-  the value type.
+  the value type. A variable’s units are read straight from a trailing
+  `_units` suffix on its name — e.g. `voltage_V` or `interval_ms`, with
+  additional underscores rendered as `/` for compound units (`rate_mg_L`
+  → `mg/L`).
 - **Publishing control** — show/hide and edit the publishing interval of
   every variable directly in the tree.
 - **Command log & live events** — fetch the recent command history of a
