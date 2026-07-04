@@ -9,7 +9,7 @@
 experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
 <!-- badges: end -->
 
-sddsParticle provides a web GUI (and a matching R API) to monitor and
+This R package provides a web GUI (and a matching R API) to monitor and
 control microcontrollers that run a [self-describing data structure
 (SDDS)](https://github.com/mLamneck/SDDS) firmware via
 [particleSpike](https://github.com/KopfLab/SDDS_particleSpike) on
@@ -23,8 +23,8 @@ all from the browser, without writing any device-specific UI.
 
 <figure>
 <img src="man/figures/README-overview.png"
-alt="Overview of the sddsParticle GUI example app" />
-<figcaption aria-hidden="true">Overview of the sddsParticle GUI example
+alt="Screenshot of the sddsParticle GUI app" />
+<figcaption aria-hidden="true">Screenshot of the sddsParticle GUI
 app</figcaption>
 </figure>
 
@@ -96,9 +96,11 @@ View” button to show additional columns. Once one or multiple devices
 are selected, the devices’ self-describing structure tree is shown in
 table format with the most recently retrieved values from the devices
 (the column headers with the device names shows how long ago the data
-was retrieved). Click the *Request latest data* button to fetch the
-latest values from the selected devices for all variables in the tree.
-The *Controls* button opens a menu that lets you toggle the publishing
+was retrieved).
+
+Click the ***Request latest data*** button to fetch the latest values
+from the selected devices for all variables in the tree. The
+***Controls*** button opens a menu that lets you toggle the publishing
 information for each varaible; show the devices’ `SYSTEM` and `HARDWARE`
 sections (which are usually not necessary to interact with and thus
 hidden by default); fetch the devices’ command logs; or open the live
@@ -108,17 +110,17 @@ events viewer.
 
 `SYSTEM` section: every SDDS Particle device shares a common `SYSTEM`
 section (device identity, vitals, and recording/publishing settings)
-that the *Controls-\>Show SYSTEM* toggle reveals — see the [`SYSTEM`
+that the ***Controls-\>Show SYSTEM*** toggle reveals — see the [`SYSTEM`
 structure
 reference](https://github.com/KopfLab/SDDS_particleSpike#the-system-structure)
 for what each field means.
 
 `HARDWARE` section: some SDDS Particle devices have a `HARDWARE` section
 that provides access to the low level hardware components of the device.
-If this section exists and what it contains depends on each device. The
-*Controls -\> Show HARDWARE* toggle reveals this section.
+Whether this section exists and what it contains depends on each device.
+The ***Controls -\> Show HARDWARE*** toggle reveals this section.
 
-**2. Use quick actions.** The *Quick actions* menu (top-right of the
+**2. Use quick actions.** The ***Quick actions*** menu (top-right of the
 data structures card) collects one-click shortcuts to the most common
 operations — they open the edit dialog focused on a specific variable
 from the data structure tree so the user does not have to search for
@@ -157,8 +159,8 @@ Two things to keep in mind when you send a value change command to the
 device(s):
 
 - The structure table will keep showing the values from the last fetch —
-  click *Request latest data* to pull the updated values back from the
-  device(s) and confirm the change took effect.
+  click ***Request latest data*** to pull the updated values back from
+  the device(s) and confirm the change took effect.
 - A change to a *saveable* variable only lives in the device’s working
   memory until you run the **Save state** quick action
   (`SYSTEM.action = saveState`, see quick actions); until then it is not
@@ -170,8 +172,8 @@ device-wide global record toggle and publishing interval (see quick
 actions), **every variable can be published on its own schedule**. When
 you open a structure entry to edit it, the dialog has a second
 **Publishing** tab that sets how (and how often) that particular
-variable is sent to the cloud. Turn on the *Controls -\> Show
-publishing* toggle to also see each variable’s current setting next to
+variable is sent to the cloud. Turn on the ***Controls -\> Show
+publishing*** toggle to also see each variable’s current setting next to
 its value in the tree.
 
 The available indiviudal variable publishing options are:
@@ -204,19 +206,19 @@ The available indiviudal variable publishing options are:
 - **never send** — never publish this variable.
 
 Note that the `HARDWARE` node in the structure (if it exists) usally
-does NOT have publishing options for its variables.
+does NOT have publishing options for its variables as HARDWARE sdds
+variables are not intended to be published.
 
 ![](man/figures/README-structure_publishing.png)
 
-**5. Review and send the command queue.** Edited values can be sent
-right away or added to a queue first. Open *Controls -\> Send queue* to
+**5. Check the command queue.** Open ***Controls -\> Send queue*** to
 see commands that have been sent, review pending commands and send (or
 resend) selected commands to the devices.
 
 ![](man/figures/README-queue.png)
 
-**6. Check live events.** *Controls - \> Show events* opens a table of
-the data events streamed from the selected devices, with the full
+**6. Check live events.** ***Controls - \> Show events*** opens a table
+of the data events streamed from the selected devices, with the full
 payload shown as formatted JSON.
 
 ![](man/figures/README-events.png)
