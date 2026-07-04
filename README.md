@@ -23,9 +23,9 @@ all from the browser, without writing any device-specific UI.
 
 <figure>
 <img src="man/figures/README-overview.png"
-alt="Overview of the sddsParticle GUI" />
-<figcaption aria-hidden="true">Overview of the sddsParticle
-GUI</figcaption>
+alt="Overview of the sddsParticle GUI example app" />
+<figcaption aria-hidden="true">Overview of the sddsParticle GUI example
+app</figcaption>
 </figure>
 
 ## Features
@@ -104,12 +104,7 @@ sections (which are usually not necessary to interact with and thus
 hidden by default); fetch the devices’ command logs; or open the live
 events viewer.
 
-<figure>
-<img src="man/figures/README-devices.png"
-alt="Device selection and resulting self-describing data structure table" />
-<figcaption aria-hidden="true">Device selection and resulting
-self-describing data structure table</figcaption>
-</figure>
+![](man/figures/README-devices.png)
 
 `SYSTEM` section: every SDDS Particle device shares a common `SYSTEM`
 section (device identity, vitals, and recording/publishing settings)
@@ -141,12 +136,7 @@ their own (see [Building your own app](#building-your-own-app)).
   recording/publishing to the cloud on or off
   (`SYSTEM.publishing.record`).
 
-<figure>
-<img src="man/figures/README-quick_actions.png"
-alt="The Quick actions menu of the example app" />
-<figcaption aria-hidden="true">The Quick actions menu of the example
-app</figcaption>
-</figure>
+![](man/figures/README-quick_actions.png)
 
 **3. Explore and edit the data structure.** The quick actions provide
 direct access to some of the most common variable in the data structure.
@@ -160,20 +150,20 @@ different types of edit interfaces depending on the variable type
 ranging from simple numeric value input boxes (with or without units) to
 specific action dropdowns.
 
-![Editing of numeric value with unit
-‘percent’](man/figures/README-structure_value.png) ![Editing of an
-enumeration value with specific options to choose
-from](man/figures/README-structure_dropdown.png)
+![](man/figures/README-structure_value.png)
+![](man/figures/README-structure_dropdown.png)
 
-Two things to keep in mind when you change a value: the change command
-is sent to the device(s) right away, but the structure table keeps
-showing the values from the last fetch — click *Request latest data* to
-pull the updated values back from the device(s) and confirm the change
-took effect. And a change to a *saveable* variable only lives in the
-device’s working memory until you run the **Save state** quick action
-(`SYSTEM.action = saveState`, see quick actions); until then it is not
-written to permanent memory and is lost on the next restart or power
-cycle.
+Two things to keep in mind when you send a value change command to the
+device(s):
+
+- The structure table will keep showing the values from the last fetch —
+  click *Request latest data* to pull the updated values back from the
+  device(s) and confirm the change took effect.
+- A change to a *saveable* variable only lives in the device’s working
+  memory until you run the **Save state** quick action
+  (`SYSTEM.action = saveState`, see quick actions); until then it is not
+  written to permanent memory and is lost on the next restart or power
+  cycle.
 
 **4. Edit the publishing behaviour of individual variables.** Beyond the
 device-wide global record toggle and publishing interval (see quick
@@ -216,31 +206,20 @@ The available indiviudal variable publishing options are:
 Note that the `HARDWARE` node in the structure (if it exists) usally
 does NOT have publishing options for its variables.
 
-<figure>
-<img src="man/figures/README-structure_publishing.png"
-alt="Editing the individual variable publishing" />
-<figcaption aria-hidden="true">Editing the individual variable
-publishing</figcaption>
-</figure>
+![](man/figures/README-structure_publishing.png)
 
 **5. Review and send the command queue.** Edited values can be sent
 right away or added to a queue first. Open *Controls -\> Send queue* to
 see commands that have been sent, review pending commands and send (or
 resend) selected commands to the devices.
 
-<figure>
-<img src="man/figures/README-queue.png" alt="Command queue" />
-<figcaption aria-hidden="true">Command queue</figcaption>
-</figure>
+![](man/figures/README-queue.png)
 
 **6. Check live events.** *Controls - \> Show events* opens a table of
 the data events streamed from the selected devices, with the full
 payload shown as formatted JSON.
 
-<figure>
-<img src="man/figures/README-events.png" alt="Live events" />
-<figcaption aria-hidden="true">Live events</figcaption>
-</figure>
+![](man/figures/README-events.png)
 
 ## Building your own app
 
