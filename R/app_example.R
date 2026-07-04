@@ -38,6 +38,26 @@ sdds_run_gui <- function(
       icon = icon("floppy-disk"),
       path = "SYSTEM.action",
       value = "saveState"
+    ),
+    sdds_ui_quick_action(
+      "change_publish_interval",
+      "Change publish interval",
+      icon = icon("upload"),
+      path = "SYSTEM.publishing.globalInterval_ms"
+    ),
+    sdds_ui_quick_action(
+      "start_recording",
+      "Start recording",
+      icon = icon("play"),
+      path = "SYSTEM.publishing.record",
+      value = "ON"
+    ),
+    sdds_ui_quick_action(
+      "stop_recording",
+      "Stop recording",
+      icon = icon("stop"),
+      path = "SYSTEM.publishing.record",
+      value = "OFF"
     )
   )
 
