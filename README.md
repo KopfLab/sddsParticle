@@ -23,9 +23,9 @@ all from the browser, without writing any device-specific UI.
 
 <figure>
 <img src="man/figures/README-overview.png"
-alt="Screenshot of the sddsParticle GUI app" />
+alt="Screenshot of the sddsParticle GUI example app" />
 <figcaption aria-hidden="true">Screenshot of the sddsParticle GUI
-app</figcaption>
+example app</figcaption>
 </figure>
 
 ## Features

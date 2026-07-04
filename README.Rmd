@@ -30,7 +30,7 @@ editable tree, and lets you change values, queue and send commands, inspect the
 command history, and watch live data events — all from the browser, without
 writing any device-specific UI.
 
-![Screenshot of the sddsParticle GUI app](man/figures/README-overview.png)
+![Screenshot of the sddsParticle GUI example app](man/figures/README-overview.png)
 
 ## Features
 
