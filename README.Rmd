@@ -88,29 +88,43 @@ sdds_run_gui(accessible_core_ids = c("0a10aced20f19d944a058c00"))
 
 ## Using the app
 
-**1. Select devices.** Pick one or more devices from the sidebar. The table shows
-the name, type, version and connection status; use the "Adj. View" button to show
-additional columns.
+**1. Select devices.** Pick one or more devices from the sidebar. The table shows the name, type, version and connection status; use the "Adj. View" button to show additional columns. Once one or multiple devices are selected, the devices' self-describing structure tree is shown in table format with the most recently retrieved values from the devices (the column headers with the device names shows how long ago the data was retrieved). Click the *Request latest data* button to fetch the latest values from the selected devices for all variables in the tree. The *Controls* button opens a menu that lets you toggle the publishing information for each varaible; show the devices' `SYSTEM` and `HARDWARE` sections (which are usually not necessary to interact with and thus hidden by default); fetch the devices' command logs; or open the live events viewer.
 
-![Device selection](man/figures/README-devices.png)
+![Device selection and resulting self-describing data structure table](man/figures/README-devices.png)
 
-**2. Explore and edit the data structure.** The selected devices' structure tree is
-shown as an editable table. Click a row to change its value; the "Controls" menu
-lets you toggle the publishing, system and hardware sections, request the latest
-values, fetch command logs, or open the live events viewer.
+`SYSTEM` section: every SDDS Particle device shares a common `SYSTEM` section (device identity, vitals, and recording/publishing settings) that the *Controls->Show SYSTEM* toggle reveals — see the [`SYSTEM` structure reference](https://github.com/KopfLab/SDDS_particleSpike#the-system-structure) for what each field means.
 
-![Editing the data structure](man/figures/README-structure1.png)
-![Editing the data structure](man/figures/README-structure2.png)
-![Editing the data structure](man/figures/README-structure3.png)
+`HARDWARE` section: some SDDS Particle devices have a `HARDWARE` section that provides access to the low level hardware components of the device. If this section exists and what it contains depends on each device. The *Controls -> Show HARDWARE* toggle reveals this section.
 
-**3. Review and send the command queue.** Edited values can be sent right away or
-added to a queue first. Open "Send queue" to see commands that have been sent,
-review pending commands and send the selected ones to the devices.
+**2. Use quick actions.** 
+
+
+
+**3. Explore and edit the data structure.** The quick actions provide direct access to some of the most common variable in the data structure. Use the search field in the upper right corner of the structure table to search for specific variables beyond the quick actions or scroll through the table to explore what is available. Click any variable/row to pop up a dialog to change its value (unless it's read-only) for one or multilple of the selected devices and send the corresponding change command to the device(s) over the web. The pop-up dialogs will show different types of edit interfaces depending on the variable type ranging from simple numeric value input boxes (with or without units) to specific action dropdowns.
+
+![Editing of numeric value with unit 'percent'](man/figures/README-structure_value.png)
+![Editing of an enumeration value with specific options to choose from](man/figures/README-structure_dropdown.png)
+
+**3. Edit the publishing behaviour of individual variables.** Beyond the device-wide global record toggle and publishing interval (see quick actions), **every variable can be published on its own schedule**. When you open a structure entry to edit it, the dialog has a second **Publishing** tab that sets how (and how often) that particular variable is sent to the cloud. Turn on the *Controls -> Show publishing* toggle to also see each variable's
+current setting next to its value in the tree. 
+
+The available indiviudal variable publishing options are:
+
+- **average over global interval (if recording)** — if the device is recording (`SYSTEM.publishing.record`): within the global publish interval (see quick actions / `SYSTEM.publishing.globalInterval_ms`), each new value of the variable is averaged and a single average value is sent once per device's global publish interval. Averaged values also carry the number of measurements and the standard deviation over the averaging window, so noisy signals can be logged compactly without losing information about their spread. If the device is not recording, this variable does not publish to the cloud.
+- **average over individual interval (if recording)** — same as above, but averaged over a custom interval you specify (x number of ms/sec/min/hour/day).
+- **send each change (if recording)** — if the device is recording: publish a value every time it changes. This setting is intended for variables that change infrequently (e.g. settings) rather than e.g. sensor readings which should be averaged over a specific time interval instead (see above). Be very careful to use this setting for frequently changing variables as it will quickly max out the available number of cloud publish events (typically ~100,000/month across all devices).
+- **send each change (always)** — publish every change regardless of the recording switch. This is useful for status flags you always want reported, no matter whether the device is formally recording or not. Same as above, be very careful to use this setting for frequently changing variables.
+- **never send** — never publish this variable.
+
+Note that the `HARDWARE` node in the structure (if it exists) usally does NOT have publishing options for its variables.
+
+![Editing the individual variable publishing](man/figures/README-structure_publishing.png)
+
+**4. Review and send the command queue.** Edited values can be sent right away or added to a queue first. Open *Controls -> Send queue* to see commands that have been sent, review pending commands and send (or resend) selected commands to the devices.
 
 ![Command queue](man/figures/README-queue.png)
 
-**4. Check live events.** "Show events" opens a table of the data events streamed
-from the selected devices, with the full payload shown as formatted JSON.
+**4. Check live events.** *Controls - > Show events* opens a table of the data events streamed from the selected devices, with the full payload shown as formatted JSON.
 
 ![Live events](man/figures/README-events.png)
 
