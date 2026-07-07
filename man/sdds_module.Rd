@@ -79,7 +79,7 @@ sdds_onstart(token, event = "sddsData")
 
 \item{space}{number of non-breaking spaces to insert between the action buttons}
 
-\item{quick_actions}{a list of \code{\link[=sdds_ui_quick_action]{sdds_ui_quick_action()}} definitions to show in the "Quick actions" popover (empty list omits the popover); the same list must be passed to \code{\link[=sdds_server]{sdds_server()}} to wire the buttons}
+\item{quick_actions}{a list of \code{\link[=sdds_ui_quick_action]{sdds_ui_quick_action()}} and/or \code{\link[=sdds_ui_quick_action_group]{sdds_ui_quick_action_group()}} definitions to show in the "Quick actions" popover (empty list omits the popover); the same list must be passed to \code{\link[=sdds_server]{sdds_server()}} to wire the buttons}
 
 \item{title}{the data structures card title}
 

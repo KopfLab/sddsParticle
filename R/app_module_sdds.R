@@ -218,7 +218,123 @@ sdds_ui_quick_action <- function(
   )
 }
 
-#' @param quick_actions a list of [sdds_ui_quick_action()] definitions to show in the "Quick actions" popover (empty list omits the popover); the same list must be passed to [sdds_server()] to wire the buttons
+#' Define a group of quick actions
+#'
+#' Defines a quick action that, instead of editing an SDDS path itself, opens a
+#' second popup (a modal) listing further quick actions (which may be plain
+#' [sdds_ui_quick_action()]s or, in turn, more groups). Use this to organise
+#' related quick actions (e.g. all illumination settings) behind a single button
+#' in the "Quick actions" popover of [sdds_ui_structures_card()]. As with plain
+#' quick actions, the same list must be passed to both [sdds_ui_structures_card()]
+#' and [sdds_server()].
+#'
+#' @param id the input id for the group button (must be unique within the module)
+#' @param label the group button label
+#' @param icon optional group button icon (e.g. from [shiny::icon()])
+#' @param actions a non-empty list of [sdds_ui_quick_action()] and/or nested
+#'   [sdds_ui_quick_action_group()] definitions shown in the group's modal
+#' @return a quick action group definition (a list) for use with [sdds_ui_structures_card()] and [sdds_server()]
+#' @export
+sdds_ui_quick_action_group <- function(
+  id,
+  label,
+  icon = NULL,
+  actions = list()
+) {
+  id |>
+    check_arg(!missing(id) && is_scalar_character(id), "must be a string")
+  actions |>
+    check_arg(
+      is.list(actions) && length(actions) > 0,
+      "must be a non-empty list of quick actions"
+    )
+  list(
+    id = id,
+    label = label,
+    icon = icon,
+    actions = actions
+  )
+}
+
+# render a quick action (leaf or group) as a button. A group button opens a
+# second popup (a modal listing its sub actions) rather than editing a path -
+# a modal is used instead of a nested popover because nested bslib popovers
+# lose their relocated content after the first open/close cycle
+sdds_ui_quick_action_button <- function(ns, qa) {
+  if (!is.null(qa$actions)) {
+    # a group button opens its modal. It lives inside the "Quick actions"
+    # popover, whose content bslib moves in/out of the DOM on every open/close.
+    # A plain actionButton's click counter can get stuck after that relocation
+    # (so observeEvent stops firing on the 2nd+ click), so fire a priority
+    # "event" input explicitly on every click instead - this does not rely on a
+    # Shiny input binding and works regardless of where the button is moved.
+    input_id <- ns(qa$id)
+    tags$button(
+      id = input_id,
+      type = "button",
+      class = "btn btn-default",
+      onclick = sprintf(
+        "Shiny.setInputValue('%s', Math.random(), {priority: 'event'});",
+        input_id
+      ),
+      qa$icon,
+      if (!is.null(qa$icon)) " ",
+      qa$label
+    )
+  } else {
+    actionButton(ns(qa$id), qa$label, icon = qa$icon)
+  }
+}
+
+# build the modal a quick action group opens: a vertical list of buttons for
+# its sub actions (leaves edit a path, nested groups open a further modal)
+sdds_quick_action_group_modal <- function(ns, group) {
+  modalDialog(
+    title = group$label,
+    easyClose = TRUE,
+    # no footer/close button - easyClose dismisses via click-outside or Escape
+    footer = NULL,
+    # shrink the dialog to just fit its buttons (like the quick actions popover)
+    # rather than the default fixed modal width
+    tags$style(HTML(
+      "#shiny-modal .modal-dialog { width: fit-content; max-width: 90vw; }"
+    )),
+    div(
+      class = "d-flex flex-column gap-2",
+      purrr::map(group$actions, function(a) sdds_ui_quick_action_button(ns, a))
+    )
+  )
+}
+
+# flatten a (possibly nested) list of quick actions down to the leaf actions
+# (those that edit a path) so each can be wired to edit_structure
+sdds_flatten_quick_actions <- function(quick_actions) {
+  quick_actions |>
+    purrr::map(function(qa) {
+      if (!is.null(qa$actions)) {
+        sdds_flatten_quick_actions(qa$actions)
+      } else {
+        list(qa)
+      }
+    }) |>
+    purrr::list_flatten()
+}
+
+# collect all group nodes (at any nesting level) so each can be wired to open
+# its modal of sub actions
+sdds_collect_quick_action_groups <- function(quick_actions) {
+  quick_actions |>
+    purrr::map(function(qa) {
+      if (!is.null(qa$actions)) {
+        c(list(qa), sdds_collect_quick_action_groups(qa$actions))
+      } else {
+        list()
+      }
+    }) |>
+    purrr::list_flatten()
+}
+
+#' @param quick_actions a list of [sdds_ui_quick_action()] and/or [sdds_ui_quick_action_group()] definitions to show in the "Quick actions" popover (empty list omits the popover); the same list must be passed to [sdds_server()] to wire the buttons
 #' @param min_height minimum height of the card
 #' @param title the data structures card title
 #' @describeIn sdds_module generates the complete data structures card (request-data button, "Quick actions" and "Controls" popovers, the structures table and a footer) ready to drop into a host layout
@@ -258,7 +374,7 @@ sdds_ui_structures_card <- function(
             div(
               class = "d-flex flex-column gap-2",
               purrr::map(quick_actions, function(qa) {
-                actionButton(ns(qa$id), qa$label, icon = qa$icon)
+                sdds_ui_quick_action_button(ns, qa)
               })
             )
           )
@@ -1475,8 +1591,8 @@ sdds_server <- function(
           condition = !is_empty(devices$get_selected_ids())
         )
       })
-      # wire each quick action button to edit_structure
-      purrr::walk(quick_actions, function(qa) {
+      # wire each leaf quick action button to edit_structure
+      purrr::walk(sdds_flatten_quick_actions(quick_actions), function(qa) {
         observeEvent(input[[qa$id]], {
           edit_structure(
             path = qa$path,
@@ -1485,6 +1601,16 @@ sdds_server <- function(
           )
         })
       })
+      # wire each group button to open a modal listing its sub actions (a leaf
+      # sub action then opens the edit dialog, cleanly replacing this modal)
+      purrr::walk(
+        sdds_collect_quick_action_groups(quick_actions),
+        function(grp) {
+          observeEvent(input[[grp$id]], {
+            showModal(sdds_quick_action_group_modal(ns, grp))
+          })
+        }
+      )
     }
 
     # return functions ======
